@@ -19,7 +19,7 @@ with col1:
     st.image(URL_LOGO, width=100)
 with col2:
     st.title("WOD Ranking Pro")
-    st.markdown("*Superando limites, um segundo de cada vez.*") # Seu Slogan aqui
+    st.markdown("*Onde cada repetição conta.*") # Seu Slogan aqui
 
 st.divider()
 
