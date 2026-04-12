@@ -16,7 +16,7 @@ st.markdown(f"""
         <img src='{URL_LOGO}' style='max-height: 80px;'>
         <div>
             <h1 style='margin: 0;'>WOD Ranking Pro</h1>
-            <p style='margin: 0; font-style: italic;'>O SEU SLOGAN AQUI</p>
+            <p style='margin: 0; font-style: italic;'>Onde cada repetição conta. </p>
         </div>
     </div>
 """, unsafe_allow_html=True)
