@@ -21,7 +21,7 @@ st.markdown(
         <img src='{URL_LOGO}' style='max-height: 80px; width: auto; max-width: 100%; border-radius: 8px;' alt='Logo'>
         <div>
             <h1 style='margin: 0; font-size: 36px;'>WOD Ranking Pro</h1>
-            <p style='margin: 0; font-size: 16px; font-style: italic; color: #555;'>Onde cada repetição conta</p>
+            <p style='margin: 0; font-size: 16px; font-style: italic; color: #555;'>*Onde cada repetição conta.*</p>
         </div>
     </div>
     """,
