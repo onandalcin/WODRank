@@ -2,61 +2,50 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="WOD Ranking Histórico", layout="centered")
+# --- CONFIGURAÇÃO ---
+# COLE AQUI o link que você copiou no Passo 1 (Publicar na Web)
+URL_PLANILHA = "SEU_LINK_AQUI_TERMINADO_EM_OUTPUT_CSV"
 
-# Título e Logo
+st.set_page_config(page_title="WOD Ranking Oficial", layout="centered")
 st.title("🏆 WOD Ranking & Histórico")
 
-# --- ÁREA DE ENTRADA DE DADOS ---
+# Função para carregar dados da planilha
+def carregar_dados():
+    try:
+        return pd.read_csv(URL_PLANILHA)
+    except:
+        return pd.DataFrame(columns=["Data", "Nome", "Tempo", "Segundos"])
+
+# --- INTERFACE DE ENTRADA ---
 with st.expander("➕ Registrar Treino de Hoje"):
-    data_treino = st.date_input("Data do Treino", datetime.now())
-    txt_input = st.text_area("Cole os nomes e tempos (Ex: Paulo 28:07)", height=150)
-    btn_salvar = st.button("Salvar no Histórico")
-
-# --- LÓGICA DE PROCESSAMENTO ---
-if "historico" not in st.session_state:
-    st.session_state.historico = pd.DataFrame(columns=["Data", "Nome", "Tempo", "Segundos"])
-
-if btn_salvar and txt_input:
-    novos_dados = []
-    linhas = txt_input.strip().split('\n')
-    for linha in linhas:
-        partes = linha.rsplit(' ', 1)
-        if len(partes) == 2:
-            nome, tempo = partes
-            try:
-                # Trata MM:SS ou MM'SS
-                t_limpo = tempo.replace("'", ":")
-                m, s = map(int, t_limpo.split(':'))
-                segundos = m * 60 + s
-                novos_dados.append({
-                    "Data": data_treino.strftime("%d/%m/%Y"),
-                    "Nome": nome.upper(),
-                    "Tempo": tempo,
-                    "Segundos": segundos
-                })
-            except: continue
+    data_treino = st.date_input("Data", datetime.now())
+    txt_input = st.text_area("Formato: NOME TEMPO (ex: PAULO 28:07)")
     
-    if novos_dados:
-        df_hoje = pd.DataFrame(novos_dados)
-        st.session_state.historico = pd.concat([st.session_state.historico, df_hoje], ignore_index=True)
-        st.success("Dados salvos com sucesso!")
+    if st.button("Gerar Ranking do Dia"):
+        linhas = txt_input.strip().split('\n')
+        dados_hoje = []
+        for linha in linhas:
+            try:
+                partes = linha.rsplit(' ', 1)
+                nome, tempo = partes[0].upper(), partes[1].replace("'", ":")
+                m, s = map(int, tempo.split(':'))
+                dados_hoje.append({"Nome": nome, "Tempo": tempo, "Segundos": m*60+s})
+            except: continue
+        
+        if dados_hoje:
+            df_dia = pd.DataFrame(dados_hoje).sort_values("Segundos").reset_index(drop=True)
+            df_dia.index += 1
+            st.session_state.temp_df = df_dia
+            st.success("Ranking calculado abaixo!")
 
 # --- EXIBIÇÃO ---
-if not st.session_state.historico.empty:
-    todas_datas = st.session_state.historico["Data"].unique()
-    data_selecionada = st.selectbox("📅 Selecione o dia para ver o Ranking:", todas_datas[::-1])
+if "temp_df" in st.session_state:
+    st.subheader(f"🥇 Ranking do Dia")
+    st.table(st.session_state.temp_df[["Nome", "Tempo"]])
     
-    # Filtrar e Rankear
-    df_dia = st.session_state.historico[st.session_state.historico["Data"] == data_selecionada].copy()
-    df_dia = df_dia.sort_values(by="Segundos").reset_index(drop=True)
-    df_dia.index += 1  # Numeração do Ranking 1, 2, 3...
-    
-    st.subheader(f"🥇 Ranking de {data_selecionada}")
-    # Mostrar a tabela com a coluna de índice (Ranking) visível
-    st.table(df_dia[["Nome", "Tempo"]])
-else:
-    st.info("Nenhum dado registrado ainda. Use o campo acima para começar!")
+    # Instrução para o dono do App
+    st.info("💡 Para salvar permanentemente: como estamos na versão grátis, copie os dados acima para sua planilha do Google. No próximo nível, faremos o botão 'Salvar' escrever direto lá!")
 
-st.sidebar.write("### Instruções")
-st.sidebar.info("1. Digite o Nome e o Tempo.\n2. Clique em Salvar.\n3. O ranking será gerado e numerado automaticamente.")
+st.divider()
+st.write("📖 **Acesso ao Banco de Dados:**")
+st.link_button("Abrir Planilha do Google", URL_PLANILHA.replace("/pub?output=csv", ""))
