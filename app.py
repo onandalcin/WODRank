@@ -10,7 +10,7 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
-# --- CABEÇALHO PERSONALIZADO ---
+# --- CABEÇALHO ---
 st.markdown(f"""
     <div style='display: flex; align-items: center; gap: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 20px;'>
         <img src='{URL_LOGO}' style='max-height: 90px; width: auto;'>
@@ -21,7 +21,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE LÓGICA ---
+# --- FUNÇÕES DE APOIO ---
 def formatar_ranking(df):
     if df.empty: return df
     df = df.sort_values("Segundos").reset_index(drop=True)
@@ -38,13 +38,13 @@ def calcular_pontos(pos):
     if "3º" in pos: return 5
     return 1
 
-# --- INTERFACE (ABAS) ---
+# --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🌎 Ranking Geral"])
 
 with aba1:
     st.subheader("Registrar Novo Treino")
     data_treino = st.date_input("Data do WOD", datetime.now())
-    txt_input = st.text_area("Formato: NOME TEMPO (Ex: PAULO 28:07)", height=150, placeholder="DICA: Cole a lista direto do WhatsApp ou do Quadro!")
+    txt_input = st.text_area("Cole os tempos (Ex: PAULO 28:07)", height=150)
     
     if st.button("Gerar Ranking"):
         if txt_input:
@@ -61,34 +61,25 @@ with aba1:
                 st.session_state.display_df = formatar_ranking(pd.DataFrame(dados))
     
     if "display_df" in st.session_state:
-        st.divider()
-        st.subheader(f"📊 Preview do Dia: {data_treino.strftime('%d/%m/%Y')}")
         st.table(st.session_state.display_df)
         if st.button("💾 CONFIRMAR E SALVAR"):
-            with st.spinner("Sincronizando com a nuvem..."):
-                try:
-                    res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                    if res.status_code == 200:
-                        st.success("✅ Dados salvos na planilha com sucesso!")
-                        del st.session_state.display_df
-                    else: st.error("Erro ao salvar. Verifique o Script do Google.")
-                except Exception as e: st.error(f"Erro de conexão: {e}")
+            with st.spinner("Sincronizando..."):
+                requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                st.success("✅ Salvo com sucesso!")
+                del st.session_state.display_df
 
 with aba2:
     st.subheader("Arquivo por Dia")
     if st.button("🔄 Sincronizar Agora"): st.cache_data.clear()
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
-        if not df_hist.empty:
-            datas = df_hist["Data"].unique()
-            data_sel = st.selectbox("Escolha uma data:", datas[::-1])
-            ranking_dia = df_hist[df_hist["Data"] == data_sel].copy()
-            st.table(formatar_ranking(ranking_dia))
-        else: st.info("Nenhum dado encontrado no histórico.")
-    except: st.error("Erro ao ler planilha. Verifique a publicação CSV.")
+        datas = df_hist["Data"].unique()
+        data_sel = st.selectbox("Escolha a data:", datas[::-1])
+        st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
+    except: st.info("Aguardando dados...")
 
 with aba3:
-    st.subheader("🏆 Hall da Fama (Temporada)")
+    st.subheader("🏆 Hall da Fama (Acumulado)")
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
@@ -98,8 +89,27 @@ with aba3:
                 dia['Pontos'] = dia['Pos'].apply(calcular_pontos)
                 lista_pontos.append(dia[['Nome', 'Pontos']])
             
-            ranking_acumulado = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False)
-            ranking_acumulado.columns = ["Pontos Acumulados"]
-            st.dataframe(ranking_acumulado.style.highlight_max(axis=0, color='#FFD700'), use_container_width=True)
-            st.caption("Critério: 🥇(10pts), 🥈(7pts), 🥉(5pts), Participação(1pt)")
-    except: st.info("O Ranking Geral será gerado assim que houverem dados salvos.")
+            # Agrupa e soma pontos
+            rank_final = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False).reset_index()
+            
+            # Adiciona Troféus no Ranking Geral
+            def adicionar_trofeu(index):
+                if index == 0: return "🏆 1º Lugar"
+                if index == 1: return "🥈 2º Lugar"
+                if index == 2: return "🥉 3º Lugar"
+                return f"{index + 1}º Lugar"
+
+            rank_final['Posição'] = [adicionar_trofeu(i) for i in range(len(rank_final))]
+            
+            # Organiza as colunas
+            rank_final = rank_final[['Posição', 'Nome', 'Pontos']]
+            
+            # Exibição com destaque para o campeão
+            st.dataframe(
+                rank_final.style.highlight_max(axis=0, subset=['Pontos'], color='#FFD700'),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            st.caption("Pontuação: 🥇(10), 🥈(7), 🥉(5), Participação(1)")
+    except: st.info("O ranking geral aparecerá aqui após o primeiro registro.")
