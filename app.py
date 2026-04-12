@@ -6,17 +6,17 @@ from datetime import datetime
 # --- CONFIGURAÇÕES ---
 URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJNPmjlFKvi2B7oY_HQONeh92HIQ_EpZc6ysKHkeus6V4nxMHT/exec"
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
-URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
+URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png" 
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
-# --- CABEÇALHO ---
+# --- CABEÇALHO (SLOGAN FIXO) ---
 st.markdown(f"""
     <div style='display: flex; align-items: center; gap: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 20px;'>
         <img src='{URL_LOGO}' style='max-height: 80px;'>
         <div>
-            <h1 style='margin: 0;'>WOD Ranking Pro</h1>
-            <p style='margin: 0; font-style: italic;'>Onde cada repetição conta. </p>
+            <h1 style='margin: 0; font-size: 32px;'>WOD Ranking Pro</h1>
+            <p style='margin: 0; font-size: 18px; font-style: italic; color: #555;'>Onde cada repetição conta.</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
@@ -41,9 +41,9 @@ def calcular_pontos(pos):
 aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🌎 Ranking Geral"])
 
 with aba1:
-    st.subheader("Registrar Treino")
+    st.subheader("Registrar Novo Treino")
     data_treino = st.date_input("Data", datetime.now())
-    txt_input = st.text_area("Formato: NOME TEMPO", height=150)
+    txt_input = st.text_area("Formato: NOME TEMPO (Ex: PAULO 28:07)", height=150)
     
     if st.button("Gerar Ranking"):
         if txt_input:
@@ -62,9 +62,10 @@ with aba1:
     if "display_df" in st.session_state:
         st.table(st.session_state.display_df)
         if st.button("💾 SALVAR NA PLANILHA"):
-            requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-            st.success("Salvo!")
-            del st.session_state.display_df
+            with st.spinner("Salvando..."):
+                requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                st.success("✅ Dados salvos com sucesso!")
+                del st.session_state.display_df
 
 with aba2:
     st.subheader("Arquivo por Dia")
@@ -73,25 +74,23 @@ with aba2:
         datas = df_hist["Data"].unique()
         data_sel = st.selectbox("Escolha a data:", datas[::-1])
         st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
-    except: st.error("Erro ao carregar histórico.")
+    except: st.error("Aguardando dados no histórico...")
 
 with aba3:
-    st.subheader("🏆 Ranking Geral (Pontuação Acumulada)")
+    st.subheader("🏆 Hall da Fama (Pontos Acumulados)")
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
-            # Processa o ranking de cada dia para atribuir pontos
             lista_pontos = []
             for d in df_geral["Data"].unique():
                 dia = formatar_ranking(df_geral[df_geral["Data"] == d])
                 dia['Pontos'] = dia['Pos'].apply(calcular_pontos)
                 lista_pontos.append(dia[['Nome', 'Pontos']])
             
-            # Soma tudo
             ranking_acumulado = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False)
-            ranking_acumulado.index.name = "Atleta"
+            ranking_acumulado.columns = ["Total de Pontos"]
             
-            # Mostra o top do ranking geral
-            st.dataframe(ranking_acumulado, use_container_width=True)
-            st.info("Critério: 1º (10pts), 2º (7pts), 3º (5pts), Outros (1pt).")
-    except: st.info("Salve o primeiro treino para ver o ranking geral.")
+            # Estilização básica para o primeiro lugar
+            st.dataframe(ranking_acumulado.style.highlight_max(axis=0, color='#FFD700'), use_container_width=True)
+            st.caption("Pontuação: 1º(10), 2º(7), 3º(5), Outros(1)")
+    except: st.info("O Ranking Geral aparecerá após o primeiro registro.")
