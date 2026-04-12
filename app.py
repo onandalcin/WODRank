@@ -5,7 +5,7 @@ from datetime import datetime
 
 # --- CONFIGURAÇÃO ---
 # COLE AQUI o link que você copiou no Passo 1 (URL do app da Web)
-URL_GOOGLE_SCRIPT = "SEU_LINK_DO_SCRIPT_AQUI"
+URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJNPmjlFKvi2B7oY_HQONeh92HIQ_EpZc6ysKHkeus6V4nxMHT/exec"
 
 st.set_page_config(page_title="WOD Ranking Oficial", layout="centered")
 st.title("🏆 WOD Ranking")
