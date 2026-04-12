@@ -5,10 +5,10 @@ from datetime import datetime
 
 # --- CONFIGURAÇÕES ---
 # 1. Cole aqui o link do Script (o que termina em /exec)
-URL_GOOGLE_SCRIPT = "SEU_LINK_DO_SCRIPT_AQUI"
+URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/SUA_CHAVE_AQUI/exec"
 
 # 2. Cole aqui o link da Planilha Publicada como CSV (o que termina em output=csv)
-URL_PLANILHA_CSV = "SEU_LINK_DA_PLANILHA_CSV_AQUI"
+URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/SUA_CHAVE/pub?output=csv"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered")
 
