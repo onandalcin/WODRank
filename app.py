@@ -3,19 +3,25 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-# --- CONFIGURAÇÃO ---
-# COLE AQUI o link que você copiou no Passo 1 (URL do app da Web)
-URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJNPmjlFKvi2B7oY_HQONeh92HIQ_EpZc6ysKHkeus6V4nxMHT/exec"
+# --- CONFIGURAÇÕES ---
+# 1. Cole aqui o link do Script (o que termina em /exec)
+URL_GOOGLE_SCRIPT = "SEU_LINK_DO_SCRIPT_AQUI"
 
-st.set_page_config(page_title="WOD Ranking Oficial", layout="centered")
-st.title("🏆 WOD Ranking")
+# 2. Cole aqui o link da Planilha Publicada como CSV (o que termina em output=csv)
+URL_PLANILHA_CSV = "SEU_LINK_DA_PLANILHA_CSV_AQUI"
 
-# --- ENTRADA DE DADOS ---
-with st.expander("➕ Registrar Novo Treino", expanded=True):
+st.set_page_config(page_title="WOD Ranking Pro", layout="centered")
+
+# Menu de Navegação em Abas
+aba1, aba2 = st.tabs(["➕ Registrar Treino", "📅 Histórico / Arquivo"])
+
+# --- ABA 1: REGISTRAR TREINO ---
+with aba1:
+    st.title("🏆 Novo Ranking")
     data_treino = st.date_input("Data do Treino", datetime.now())
-    txt_input = st.text_area("Cole os tempos (Ex: PAULO 28:07)", height=150)
+    txt_input = st.text_area("Cole os tempos (Ex: PAULO 28:07)", height=150, key="input_hoje")
     
-    if st.button("Gerar Ranking"):
+    if st.button("Gerar Ranking do Dia"):
         if txt_input:
             dados_hoje = []
             for linha in txt_input.strip().split('\n'):
@@ -37,22 +43,49 @@ with st.expander("➕ Registrar Novo Treino", expanded=True):
                 st.session_state.ready_to_save = dados_hoje
                 st.session_state.display_df = df
         else:
-            st.error("Por favor, insira os dados.")
+            st.error("Insira os dados antes de gerar.")
 
-# --- EXIBIÇÃO E BOTÃO SALVAR ---
-if "display_df" in st.session_state:
-    st.subheader(f"🥇 Ranking de {data_treino.strftime('%d/%m/%Y')}")
-    st.table(st.session_state.display_df[["Nome", "Tempo"]])
-    
-    if st.button("💾 SALVAR NA PLANILHA"):
-        with st.spinner("Enviando para o Google Sheets..."):
-            try:
-                response = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                if response.status_code == 200:
-                    st.success("✅ Dados salvos com sucesso na planilha!")
-                    # Limpa os dados para evitar salvar duplicado
-                    del st.session_state.display_df
-                else:
-                    st.error("Erro ao salvar. Verifique a configuração do Script.")
-            except Exception as e:
-                st.error(f"Falha na conexão: {e}")
+    if "display_df" in st.session_state:
+        st.divider()
+        st.subheader(f"📊 Prévia: {data_treino.strftime('%d/%m/%Y')}")
+        st.table(st.session_state.display_df[["Nome", "Tempo"]])
+        
+        if st.button("💾 CONFIRMAR E SALVAR NA PLANILHA"):
+            with st.spinner("Salvando..."):
+                try:
+                    res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                    if res.status_code == 200:
+                        st.success("✅ Salvo no histórico!")
+                        del st.session_state.display_df
+                    else: st.error("Erro no servidor Google.")
+                except Exception as e: st.error(f"Erro: {e}")
+
+# --- ABA 2: HISTÓRICO / ARQUIVO ---
+with aba2:
+    st.title("📂 Arquivo de Treinos")
+    if st.button("🔄 Atualizar Dados da Planilha"):
+        # Força o Streamlit a ler a planilha novamente
+        st.cache_data.clear()
+
+    try:
+        # Lê a planilha publicada
+        df_historico = pd.read_csv(URL_PLANILHA_CSV)
+        
+        if not df_historico.empty:
+            # Filtro por Data
+            datas_disponiveis = df_historico["Data"].unique()
+            data_selecionada = st.selectbox("Selecione uma data para ver o ranking:", datas_disponiveis[::-1])
+            
+            # Filtra, ordena e numera o ranking daquele dia
+            ranking_dia = df_historico[df_historico["Data"] == data_selecionada].copy()
+            ranking_dia = ranking_dia.sort_values("Segundos").reset_index(drop=True)
+            ranking_dia.index += 1
+            
+            st.subheader(f"🥇 Ranking Final de {data_selecionada}")
+            st.table(ranking_dia[["Nome", "Tempo"]])
+        else:
+            st.info("A planilha parece estar vazia.")
+            
+    except Exception as e:
+        st.error("Ainda não há dados suficientes na planilha ou o link CSV está incorreto.")
+        st.info("Certifique-se de que você já salvou pelo menos um treino e que o link da planilha está correto.")
