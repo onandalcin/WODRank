@@ -3,7 +3,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Ranking Diário", layout="centered")
 
-st.title("🏆 Ranking do Treino")
+st.title("🏆 Ranking do WOD")
 
 # Área para inserir os dados manualmente de forma simples
 st.subheader("Registrar Tempos")
