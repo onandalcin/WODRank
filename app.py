@@ -9,7 +9,7 @@ URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJ
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/SUA_CHAVE/pub?output=csv"
 
 # Link da sua Logomarca (Deixei o ícone padrão para teste)
-URL_LOGO = "https://cdn-icons-png.flaticon.com/512/3112/3112946.png" 
+URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png" 
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
