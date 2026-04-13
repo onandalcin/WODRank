@@ -4,7 +4,8 @@ import requests
 from datetime import datetime
 
 # --- CONFIGURAÇÕES ---
-URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJNPmjlFKvi2B7oY_HQONeh92HIQ_EpZc6ysKHkeus6V4nxMHT/exec"
+# NOVA CHAVE ATUALIZADA ABAIXO
+URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwBOPsOjjiqiiSTxbiM5iGXSBuJKN848niP0TTeMkacDEkSFpuYe0meOGX0ASR9yncz/exec"
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
@@ -38,7 +39,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO (LOGO 3X MAIOR) ---
+# --- CABEÇALHO ---
 st.markdown(f"""
     <div style="text-align: center; margin-top: -10px; margin-bottom: 10px;">
         <img src="{URL_LOGO}" height="240">
@@ -50,7 +51,6 @@ st.markdown(f"""
 # --- FUNÇÕES ---
 def formatar_tabela_bonita(df):
     if df.empty: return df
-    # Ordena pelo menor tempo (Segundos)
     df = df.sort_values("Segundos").reset_index(drop=True)
     posicoes = []
     for i in range(len(df)):
@@ -75,7 +75,6 @@ aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 with aba1:
     st.markdown("### 📝 Registrar Treino")
     
-    # Seleção de Data e Horário
     col1, col2 = st.columns(2)
     with col1:
         data_treino = st.date_input("Data do WOD", datetime.now())
@@ -116,10 +115,16 @@ with aba1:
         
         if st.button("🚀 CONFIRMAR E ENVIAR"):
             with st.spinner("Sincronizando..."):
-                requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success(f"✅ Dados das {horario_sel} salvos!")
-                st.balloons()
-                st.session_state.show_preview = False
+                try:
+                    res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                    if res.status_code == 200:
+                        st.success(f"✅ Dados das {horario_sel} salvos!")
+                        st.balloons()
+                        st.session_state.show_preview = False
+                    else:
+                        st.error("Erro ao salvar. Verifique a implantação do Script.")
+                except:
+                    st.error("Falha na conexão com o servidor.")
 
 with aba2:
     st.markdown("### 🔍 Histórico")
@@ -130,10 +135,9 @@ with aba2:
             datas = sorted(df_hist["Data"].unique(), reverse=True)
             data_sel = st.selectbox("Escolha o dia:", datas)
             
-            # Filtra por dia e exibe
             df_dia = df_hist[df_hist["Data"] == data_sel]
             st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
-    except Exception as e:
+    except:
         st.info("Aguardando registros na planilha...")
 
 with aba3:
@@ -155,7 +159,6 @@ with aba3:
                 PTS=('Pontos', 'sum'), WDS=('Nome', 'count')
             ).sort_values("PTS", ascending=False).reset_index()
             
-            # Medalhas no Ranking de Elite
             posicoes_elite = []
             for i in range(len(rank_final)):
                 num = i + 1
@@ -166,5 +169,5 @@ with aba3:
             
             rank_final.insert(0, '#', posicoes_elite)
             st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'), use_container_width=True, hide_index=True)
-    except Exception as e:
+    except:
         st.info("O ranking será gerado após o primeiro registro.")
