@@ -66,42 +66,55 @@ with aba1:
         horario_sel = st.selectbox("Horário da Turma", horarios_box)
 
     st.markdown("---")
-    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", height=250, 
-                             placeholder="Exemplo baseado na sua foto:\nGAMES 18 35\nPAULO 19 20\nCAMILA 18 23")
     
-    if st.button("GERAR PRÉVIA DO RANKING"):
-        if txt_input:
-            dados = []
-            linhas = txt_input.strip().split('\n')
-            for l in linhas:
-                try:
-                    # Limpa símbolos comuns que você vê no quadro
-                    limpo = l.replace("'", " ").replace(":", " ").replace("+", " ").strip()
-                    partes = limpo.split()
-                    
-                    if len(partes) >= 2:
-                        # Pega tudo que não é número como Nome
-                        nome = " ".join([p for p in partes if not p.isdigit()]).upper()
-                        # Pega apenas os números para o Tempo
-                        nums = [p for p in partes if p.isdigit()]
-                        
-                        minutos = int(nums[0])
-                        segundos = int(nums[1]) if len(nums) > 1 else 0
-                        
-                        dados.append({
-                            "Data": data_treino.strftime("%d/%m/%Y"),
-                            "Horario": horario_sel,
-                            "Nome": nome,
-                            "Tempo": f"{minutos:02d}:{segundos:02d}",
-                            "Segundos": minutos*60 + segundos
-                        })
-                except: continue
-            
-            if dados:
-                st.session_state.ready_to_save = dados
-                st.session_state.show_preview = True
+    # Campo de texto vinculado ao session_state para permitir limpeza
+    if "texto_input" not in st.session_state:
+        st.session_state.texto_input = ""
+
+    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", 
+                             value=st.session_state.texto_input,
+                             height=250, 
+                             placeholder="Exemplo:\nGAMES 18 35\nPAULO 19 20",
+                             key="input_area")
+    
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        if st.button("GERAR PRÉVIA DO RANKING"):
+            if txt_input:
+                dados = []
+                st.session_state.texto_input = txt_input # Salva o que foi digitado
+                linhas = txt_input.strip().split('\n')
+                for l in linhas:
+                    try:
+                        limpo = l.replace("'", " ").replace(":", " ").replace("+", " ").strip()
+                        partes = limpo.split()
+                        if len(partes) >= 2:
+                            nome = " ".join([p for p in partes if not p.isdigit()]).upper()
+                            nums = [p for p in partes if p.isdigit()]
+                            minutos = int(nums[0])
+                            segundos = int(nums[1]) if len(nums) > 1 else 0
+                            dados.append({
+                                "Data": data_treino.strftime("%d/%m/%Y"),
+                                "Horario": horario_sel,
+                                "Nome": nome,
+                                "Tempo": f"{minutos:02d}:{segundos:02d}",
+                                "Segundos": minutos*60 + segundos
+                            })
+                    except: continue
+                
+                if dados:
+                    st.session_state.ready_to_save = dados
+                    st.session_state.show_preview = True
+
+    with col_btn2:
+        if st.button("🗑️ LIMPAR CAMPOS"):
+            st.session_state.texto_input = ""
+            st.session_state.show_preview = False
+            st.rerun()
 
     if st.session_state.get("show_preview"):
+        st.markdown("---")
         st.markdown("#### Revisão do Pódio")
         df_previa = pd.DataFrame(st.session_state.ready_to_save)
         st.dataframe(formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
@@ -109,10 +122,13 @@ with aba1:
         if st.button("🚀 SALVAR NA PLANILHA"):
             res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
             if res.status_code == 200:
-                st.success("✅ Salvo!")
+                st.success("✅ Salvo com sucesso!")
                 st.balloons()
+                # Limpa tudo automaticamente após o sucesso
+                st.session_state.texto_input = ""
                 st.session_state.show_preview = False
                 st.cache_data.clear()
+                st.rerun()
 
 with aba2:
     st.markdown("### 🔍 Histórico")
