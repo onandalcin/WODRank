@@ -10,14 +10,14 @@ URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJ
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
-# --- CONFIGURAR IA (GEMINI) ---
-# Substitua pela sua chave ou use st.secrets para segurança
-API_KEY = "SUA_CHAVE_AQUI" 
+# --- CONFIGURAR GEMINI IA ---
+# DICA: No Streamlit Cloud, salve sua chave em 'Secrets' como GEMINI_API_KEY
+API_KEY = st.secrets.get("GEMINI_API_KEY", "SUA_CHAVE_AQUI")
 genai.configure(api_key=API_KEY)
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
-# --- CSS (MANTIDO O ANTERIOR) ---
+# --- CSS MOBILE-FIRST ---
 st.markdown(f"""
     <style>
         .block-container {{ padding: 1rem 0.8rem; }}
@@ -35,7 +35,7 @@ st.markdown(f"""
 # --- CABEÇALHO ---
 st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="240"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
 
-# --- FUNÇÕES AUXILIARES ---
+# --- FUNÇÕES ---
 def formatar_tabela_bonita(df):
     if df.empty: return df
     df = df.sort_values("Segundos").reset_index(drop=True)
@@ -49,51 +49,67 @@ def formatar_tabela_bonita(df):
     return df[['Pos', 'Nome', 'Tempo']]
 
 def ler_quadro_com_ia(imagem):
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    prompt = """
-    Analise esta foto de um quadro de horários de CrossFit. 
-    Extraia os nomes dos alunos e seus respectivos tempos.
-    Retorne APENAS uma lista no formato: NOME TEMPO
-    Exemplo:
-    PAULO 28:07
-    EDSON 27:50
-    Se houver anotações como +500 ou +4, ignore e coloque apenas o tempo principal ou ignore a linha se estiver ilegível.
-    """
-    response = model.generate_content([prompt, imagem])
-    return response.text
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = """
+        Analise a imagem deste quadro de Crossfit. 
+        Extraia os nomes dos alunos e seus respectivos tempos de treino.
+        Retorne APENAS uma lista no formato: NOME TEMPO
+        Exemplo:
+        PAULO 28:07
+        EDSON 27:50
+        Ignore anotações extras como '+500' ou '+4', pegue apenas o tempo principal.
+        """
+        response = model.generate_content([prompt, imagem])
+        return response.text
+    except Exception as e:
+        return f"Erro na leitura: {str(e)}"
 
-# --- INTERFACE ---
+def calcular_pontos_dinamico(index_linear):
+    pos = index_linear + 1
+    if pos == 1: return 100
+    if pos == 2: return 95
+    if pos == 3: return 90
+    return max(10, 90 - (pos - 3))
+
+# --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
 with aba1:
-    st.markdown("### 📝 Registrar Resultados")
+    st.markdown("### 📝 Registrar Treino")
     data_treino = st.date_input("Data do WOD", datetime.now())
     
-    # Opção de Upload de Foto
-    foto_quadro = st.file_uploader("📷 Escanear Quadro Branco", type=['jpg', 'jpeg', 'png'])
+    # Novo botão para Foto
+    arquivo_foto = st.file_uploader("📷 Tirar Foto ou Subir Imagem do Quadro", type=['jpg', 'jpeg', 'png'])
     
-    if foto_quadro:
-        img = Image.open(foto_quadro)
-        st.image(img, caption="Foto carregada", use_container_width=True)
-        if st.button("🤖 LER FOTO COM IA"):
-            with st.spinner("IA analisando o quadro..."):
-                texto_extraido = ler_quadro_com_ia(img)
-                st.session_state.texto_input = texto_extraido
-                st.success("Leitura concluída! Verifique os dados abaixo.")
+    if arquivo_foto:
+        img = Image.open(arquivo_foto)
+        st.image(img, caption="Imagem carregada", use_container_width=True)
+        if st.button("🤖 ESCANEAR QUADRO COM IA"):
+            with st.spinner("Analisando caligrafia..."):
+                texto_ia = ler_quadro_com_ia(img)
+                st.session_state.texto_input = texto_ia
+                st.success("Leitura finalizada! Ajuste os dados abaixo se necessário.")
 
-    # Área de texto (preenchida manualmente ou pela IA)
-    valor_padrao = st.session_state.get("texto_input", "")
-    txt_input = st.text_area("Lista Final (NOME TEMPO)", value=valor_padrao, height=200)
+    # Campo de texto (preenchido pela IA ou manual)
+    valor_atual = st.session_state.get("texto_input", "")
+    txt_input = st.text_area("Dados extraídos (NOME TEMPO)", value=valor_atual, height=200)
     
-    if st.button("GERAR PRÉVIA"):
+    if st.button("GERAR PRÉVIA DO RANKING"):
         if txt_input:
             dados = []
             for l in txt_input.strip().split('\n'):
                 try:
-                    p = l.rsplit(' ', 1)
-                    nome, tempo = p[0].upper(), p[1].replace("'", ":").replace('"', ":")
+                    partes = l.rsplit(' ', 1)
+                    nome = partes[0].upper()
+                    tempo = partes[1].replace("'", ":").replace('"', ":")
                     m, s = map(int, tempo.split(':')[:2])
-                    dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Nome": nome, "Tempo": f"{m:02d}:{s:02d}", "Segundos": m*60+s})
+                    dados.append({
+                        "Data": data_treino.strftime("%d/%m/%Y"),
+                        "Nome": nome,
+                        "Tempo": f"{m:02d}:{s:02d}",
+                        "Segundos": m*60+s
+                    })
                 except: continue
             if dados:
                 st.session_state.ready_to_save = dados
@@ -104,11 +120,40 @@ with aba1:
         df_previa = pd.DataFrame(st.session_state.ready_to_save)
         st.dataframe(formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
         if st.button("🚀 SALVAR NO BANCO DE DADOS"):
-            requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-            st.success("✅ Sincronizado!")
-            st.balloons()
-            st.session_state.show_preview = False
-            if "texto_input" in st.session_state: del st.session_state.texto_input
+            with st.spinner("Sincronizando..."):
+                requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                st.success("✅ Tudo pronto! Pontos computados.")
+                st.balloons()
+                st.session_state.show_preview = False
+                if "texto_input" in st.session_state: del st.session_state.texto_input
 
-# --- ABAS DE HISTÓRICO E ELITE (MANTIDAS IGUAIS) ---
-# ... (restante do código que você já tem para aba2 e aba3)
+with aba2:
+    st.markdown("### 🔍 Histórico")
+    if st.button("🔄 ATUALIZAR"): st.cache_data.clear()
+    try:
+        df_hist = pd.read_csv(URL_PLANILHA_CSV)
+        if not df_hist.empty:
+            datas = sorted(df_hist["Data"].unique(), reverse=True)
+            data_sel = st.selectbox("Escolha o dia:", datas)
+            st.dataframe(formatar_tabela_bonita(df_hist[df_hist["Data"] == data_sel]), use_container_width=True, hide_index=True)
+    except: st.info("Buscando dados...")
+
+with aba3:
+    st.markdown("### 🏆 Ranking de Elite")
+    try:
+        df_geral = pd.read_csv(URL_PLANILHA_CSV)
+        if not df_geral.empty:
+            lista_acumulada = []
+            for d in df_geral["Data"].unique():
+                dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
+                dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
+                lista_acumulada.append(dia[['Nome', 'Pontos']])
+            
+            rank_final = pd.concat(lista_acumulada).groupby("Nome").agg(
+                PTS=('Pontos', 'sum'), WDS=('Nome', 'count')
+            ).sort_values("PTS", ascending=False).reset_index()
+            
+            posicoes_elite = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(rank_final))]
+            rank_final.insert(0, '#', posicoes_elite)
+            st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'), use_container_width=True, hide_index=True)
+    except: st.info("Sem dados suficientes.")
