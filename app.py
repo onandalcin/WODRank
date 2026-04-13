@@ -10,64 +10,33 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="wide", page_icon="🏆")
 
-# --- CSS AVANÇADO (LATARIA PREMIUM) ---
+# --- LATARIA PREMIUM (CSS) ---
 st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        
-        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        
-        /* Estilo dos Cards de Métricas */
-        [data-testid="stMetricValue"] { font-size: 28px; font-weight: 900; color: #FF4B4B; }
-        
-        /* Botões Arredondados e Modernos */
+        [data-testid="stMetricValue"] { font-size: 24px; font-weight: 900; color: #FF4B4B; }
         .stButton>button {
-            border-radius: 12px;
-            background: linear-gradient(145deg, #1e1e1e, #2a2a2a);
+            border-radius: 10px;
+            background: #1e1e1e;
             color: white;
-            border: none;
-            padding: 10px 24px;
             font-weight: 700;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
+            width: 100%;
         }
-        .stButton>button:hover {
-            transform: translateY(-2px);
-            background: #FF4B4B;
-            box-shadow: 0 6px 20px rgba(255, 75, 75, 0.4);
-        }
-
-        /* Tabs Personalizadas */
-        .stTabs [data-baseweb="tab-list"] { background-color: transparent; }
-        .stTabs [data-baseweb="tab"] {
-            font-weight: 700;
-            color: #888;
-            border-radius: 8px;
-            padding: 8px 20px;
-        }
-        .stTabs [aria-selected="true"] { color: #FF4B4B !important; border-bottom: 3px solid #FF4B4B !important; }
+        .stButton>button:hover { background: #FF4B4B; border-color: #FF4B4B; }
+        .sidebar .sidebar-content { background-image: linear-gradient(#2e7bcf,#2e7bcf); color: white; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR (IDENTIDADE VISUAL) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.image(URL_LOGO, use_container_width=True)
-    st.title("WOD Ranking Pro")
-    st.markdown("---")
-    st.markdown("### 📣 Slogan")
-    st.info("*Onde cada repetição conta.*")
-    st.markdown("---")
-    st.caption("v2.0 | Pro Dashboard")
+    st.markdown("<h2 style='text-align: center;'>WOD Ranking Pro</h2>", unsafe_allow_html=True)
+    st.info("💡 **Dica:** A constância é a chave para subir no Elite WODRank.")
+    st.divider()
+    st.caption("Onde cada repetição conta.")
 
-# --- LÓGICA DE DADOS ---
-def calcular_pontos_dinamico(index_linear):
-    pos = index_linear + 1
-    if pos == 1: return 100
-    if pos == 2: return 95
-    if pos == 3: return 90
-    return max(10, 90 - (pos - 3))
-
+# --- FUNÇÕES ---
 def formatar_tabela_bonita(df):
+    if df.empty: return df
     df = df.sort_values("Segundos").reset_index(drop=True)
     df.index += 1
     df['Pos'] = [f"{i}º" for i in df.index]
@@ -76,21 +45,27 @@ def formatar_tabela_bonita(df):
     if len(df) >= 3: df.loc[3, 'Pos'] = "🥉"
     return df[['Pos', 'Nome', 'Tempo']]
 
-# --- CONTEÚDO PRINCIPAL ---
-st.title("🚀 Dashboard de Performance")
+def calcular_pontos_dinamico(index_linear):
+    pos = index_linear + 1
+    if pos == 1: return 100
+    if pos == 2: return 95
+    if pos == 3: return 90
+    return max(10, 90 - (pos - 3))
 
+# --- CONTEÚDO PRINCIPAL ---
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR WOD", "📅 HISTÓRICO", "🔥 ELITE WODRANK"])
 
+# ABA 1: REGISTRO
 with aba1:
-    col_input, col_preview = st.columns([1, 1], gap="large")
+    st.markdown("### 📥 Entrada de Resultados")
+    col1, col2 = st.columns([1, 1], gap="medium")
     
-    with col_input:
-        st.markdown("### 📥 Entrada de Dados")
+    with col1:
         data_treino = st.date_input("Data do Treino", datetime.now())
-        txt_input = st.text_area("Resultados (Formato: Nome Tempo)", height=250, placeholder="PEDRO 12:40\nANA 13:05")
-        btn_preview = st.button("👁️ Visualizar Ranking")
+        txt_input = st.text_area("Cole aqui (Ex: NOME 10:00)", height=200)
+        btn_preview = st.button("Gerar Prévia")
 
-    with col_preview:
+    with col2:
         if btn_preview and txt_input:
             dados = []
             for l in txt_input.strip().split('\n'):
@@ -103,22 +78,60 @@ with aba1:
             
             if dados:
                 st.session_state.ready_to_save = dados
-                preview_df = formatar_tabela_bonita(pd.DataFrame(dados))
-                st.markdown("### 📊 Prévia do Ranking")
-                st.dataframe(preview_df, use_container_width=True, hide_index=True)
-                
-                if st.button("🚀 CONFIRMAR E SALVAR"):
+                st.table(formatar_tabela_bonita(pd.DataFrame(dados)))
+                if st.button("💾 CONFIRMAR E SALVAR"):
                     requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                    st.success("✅ Sincronizado com o Google Sheets!")
+                    st.success("✅ Sincronizado!")
                     st.balloons()
 
+# ABA 2: HISTÓRICO
 with aba2:
-    st.markdown("### 🔍 Consulta de Treinos")
-    if st.button("🔄 Sincronizar Histórico"): st.cache_data.clear()
+    st.markdown("### 🔍 Consulta por Data")
+    if st.button("🔄 Atualizar Banco de Dados"):
+        st.cache_data.clear()
     
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
-        datas = df_hist["Data"].unique()
-        data_sel = st.selectbox("Selecione o dia do WOD:", datas[::-1])
-        
-        # Filtro
+        if not df_hist.empty:
+            datas = df_hist["Data"].unique()
+            data_sel = st.selectbox("Selecione o dia:", datas[::-1])
+            res_dia = formatar_tabela_bonita(df_hist[df_hist["Data"] == data_sel])
+            st.table(res_dia)
+        else:
+            st.info("Nenhum dado registrado.")
+    except Exception as e:
+        st.warning("Aguardando conexão com a planilha ou novos registros.")
+
+# ABA 3: ELITE WODRANK
+with aba3:
+    st.markdown("### 🏆 Top Performance Acumulada")
+    try:
+        df_geral = pd.read_csv(URL_PLANILHA_CSV)
+        if not df_geral.empty:
+            # Cards de resumo
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Atletas Ativos", df_geral["Nome"].nunique())
+            c2.metric("Total de WODs", len(df_geral["Data"].unique()))
+            
+            # Lógica de Pontos
+            lista_acumulada = []
+            for d in df_geral["Data"].unique():
+                dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
+                dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
+                lista_acumulada.append(dia[['Nome', 'Pontos']])
+            
+            rank_final = pd.concat(lista_acumulada).groupby("Nome").agg(
+                PONTOS=('Pontos', 'sum'), FREQ=('Nome', 'count')
+            ).sort_values("PONTOS", ascending=False).reset_index()
+            
+            rank_final.insert(0, 'RANK', [f"#{i+1}" for i in range(len(rank_final))])
+            
+            st.dataframe(
+                rank_final.style.highlight_max(axis=0, subset=['PONTOS'], color='#FFD700'),
+                use_container_width=True, hide_index=True
+            )
+            st.info("Regra: 1º(100), 2º(95), 3º(90). Demais caem 1pt por posição.")
+        else:
+            st.info("O Elite WODRank aparecerá após os registros.")
+    except Exception as e:
+        st.error("Erro ao carregar o ranking. Verifique o link da planilha.")
