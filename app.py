@@ -51,7 +51,7 @@ def formatar_tabela_bonita(df):
 def ler_quadro_com_ia(imagem):
     try:
         # Mudamos para o identificador mais estável
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        model = genai.GenerativeModel('gemini-1.0-pro-vision')
         
         prompt = """
         Você é um assistente de cronometragem de Crossfit. 
