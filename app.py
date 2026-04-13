@@ -10,87 +10,29 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="wide", page_icon="🏆")
 
-# --- DESIGN SYSTEM (LATARIA CUSTOMIZADA) ---
+# --- DESIGN SYSTEM ---
 st.markdown(f"""
     <style>
-        /* Fundo Geral */
-        .stApp {{
-            background-color: #0E1117;
-            color: #E0E0E0;
-        }}
-        
-        /* Sidebar Estilizada */
-        [data-testid="stSidebar"] {{
-            background-color: #161B22;
-            border-right: 1px solid #30363D;
-        }}
-        
-        /* Estilo dos Títulos e Textos */
-        h1, h2, h3 {{
-            font-family: 'Inter', sans-serif;
-            font-weight: 800 !important;
-            letter-spacing: -0.5px;
-        }}
-        
-        /* Custom Card (Efeito de Profundidade) */
-        .div-card {{
-            background-color: #1C2128;
-            padding: 20px;
-            border-radius: 15px;
-            border: 1px solid #30363D;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-            margin-bottom: 20px;
-        }}
-
-        /* Botão Principal */
+        .stApp {{ background-color: #0E1117; color: #E0E0E0; }}
+        [data-testid="stSidebar"] {{ background-color: #161B22; border-right: 1px solid #30363D; }}
         .stButton>button {{
-            width: 100%;
-            border-radius: 12px;
+            width: 100%; border-radius: 12px;
             background: linear-gradient(90deg, #FF4B4B 0%, #CC3333 100%);
-            color: white;
-            border: none;
-            padding: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: 0.3s all;
-        }}
-        .stButton>button:hover {{
-            transform: scale(1.02);
-            box-shadow: 0 0 15px rgba(255, 75, 75, 0.4);
-        }}
-
-        /* Tabs (Abas) Customizadas */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 24px;
-            background-color: transparent;
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            height: 50px;
-            background-color: transparent;
-            border: none;
-            color: #8B949E;
-            font-weight: 600;
-        }}
-        .stTabs [aria-selected="true"] {{
-            color: #FF4B4B !important;
-            border-bottom: 2px solid #FF4B4B !important;
-        }}
-        
-        /* Métricas */
-        [data-testid="stMetricValue"] {{
-            color: #FF4B4B;
-            font-weight: 800;
-        }}
+            color: white; border: none; padding: 12px; font-weight: 700;
+            text-transform: uppercase; transition: 0.3s all;
+        }
+        .stButton>button:hover {{ transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 75, 75, 0.4); }}
+        .stTabs [data-baseweb="tab-list"] {{ gap: 24px; }}
+        .stTabs [aria-selected="true"] {{ color: #FF4B4B !important; border-bottom: 2px solid #FF4B4B !important; }}
+        [data-testid="stMetricValue"] {{ color: #FF4B4B; font-weight: 800; }}
     </style>
 """, unsafe_allow_html=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
     st.image(URL_LOGO, use_container_width=True)
-    st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
     st.markdown("### 🔥 PERFORMANCE")
-    st.write("Bem-vindo à Elite. Aqui, cada repetição é registrada e cada segundo é disputado.")
+    st.write("Cada segundo conta na busca pela elite.")
     st.divider()
     st.caption("Onan Dal Cin | Petroleum Engineer")
 
@@ -112,7 +54,7 @@ def calcular_pontos_dinamico(index_linear):
     if pos == 3: return 90
     return max(10, 90 - (pos - 3))
 
-# --- DASHBOARD PRINCIPAL ---
+# --- DASHBOARD ---
 st.markdown("<h1 style='color: white;'>WOD Ranking <span style='color: #FF4B4B;'>Pro</span></h1>", unsafe_allow_html=True)
 st.markdown("<p style='color: #8B949E; margin-top: -20px;'>Onde cada repetição conta.</p>", unsafe_allow_html=True)
 
@@ -122,10 +64,59 @@ aba1, aba2, aba3 = st.tabs(["➕ REGISTRAR", "📅 HISTÓRICO", "🏆 ELITE WODR
 with aba1:
     col_l, col_r = st.columns([1, 1], gap="large")
     with col_l:
-        st.markdown("### 📥 Input")
+        st.markdown("### 📥 Entrada")
         data_treino = st.date_input("Data do WOD", datetime.now())
-        txt_input = st.text_area("Lista de Resultados", height=200, placeholder="DICA: NOME TEMPO (ex: PAULO 12:45)")
-        if st.button("VISUALIZAR RANKING"):
+        txt_input = st.text_area("Lista (NOME TEMPO)", height=200)
+        
+        if st.button("GERAR PRÉVIA"):
             if txt_input:
                 dados = []
-                for l in txt_input.strip().split('\n
+                # CORREÇÃO AQUI: String literal fechada corretamente
+                linhas = txt_input.strip().split('\n')
+                for l in linhas:
+                    try:
+                        p = l.rsplit(' ', 1)
+                        nome, tempo = p[0].upper(), p[1].replace("'", ":")
+                        m, s = map(int, tempo.split(':'))
+                        dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Nome": nome, "Tempo": tempo, "Segundos": m*60+s})
+                    except: continue
+                if dados:
+                    st.session_state.ready_to_save = dados
+                    st.session_state.show_preview = True
+    
+    with col_r:
+        if st.session_state.get("show_preview"):
+            st.markdown("### 👀 Preview")
+            st.table(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)))
+            if st.button("🚀 SALVAR NO BANCO"):
+                requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                st.success("Sincronizado!")
+                st.balloons()
+                st.session_state.show_preview = False
+
+# --- HISTÓRICO ---
+with aba2:
+    st.markdown("### 🔍 Histórico")
+    if st.button("🔄 ATUALIZAR"): st.cache_data.clear()
+    try:
+        df_hist = pd.read_csv(URL_PLANILHA_CSV)
+        if not df_hist.empty:
+            datas = sorted(df_hist["Data"].unique(), reverse=True)
+            data_sel = st.selectbox("Escolha a Data:", datas)
+            st.table(formatar_tabela_bonita(df_hist[df_hist["Data"] == data_sel]))
+    except: st.info("Aguardando registros...")
+
+# --- ELITE RANK ---
+with aba3:
+    st.markdown("### 🔥 Tabela da Elite")
+    try:
+        df_geral = pd.read_csv(URL_PLANILHA_CSV)
+        if not df_geral.empty:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Atletas", df_geral["Nome"].nunique())
+            c2.metric("WODs", len(df_geral["Data"].unique()))
+            c3.metric("Líder", df_geral.groupby("Nome").size().idxmax())
+
+            lista_acumulada = []
+            for d in df_geral["Data"].unique():
+                dia
