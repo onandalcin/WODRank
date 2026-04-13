@@ -38,7 +38,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO (LOGO 3X MAIOR) ---
+# --- CABEÇALHO ---
 st.markdown(f"""
     <div style="text-align: center; margin-top: -10px; margin-bottom: 10px;">
         <img src="{URL_LOGO}" height="240">
@@ -129,7 +129,15 @@ with aba3:
                 PTS=('Pontos', 'sum'), WDS=('Nome', 'count')
             ).sort_values("PTS", ascending=False).reset_index()
             
-            rank_final.insert(0, '#', [f"{i+1}º" for i in range(len(rank_final))])
+            # --- LÓGICA DE MEDALHAS NO RANKING DE ELITE ---
+            posicoes = []
+            for i in range(len(rank_final)):
+                if i == 0: posicoes.append("🥇")
+                elif i == 1: posicoes.append("🥈")
+                elif i == 2: posicoes.append("🥉")
+                else: posicoes.append(f"{i+1}º")
+            
+            rank_final.insert(0, '#', posicoes)
             st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'), use_container_width=True, hide_index=True)
     except Exception as e:
         st.info("O ranking será gerado após o primeiro registro.")
