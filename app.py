@@ -8,60 +8,59 @@ URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJ
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
-# Layout 'centered' para foco total no conteúdo
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
-# --- DESIGN SYSTEM LIGHT CENTRALIZADO ---
+# --- CSS MOBILE-FIRST (LATARIA OTIMIZADA) ---
 st.markdown(f"""
     <style>
-        .stApp {{
-            background-color: #FFFFFF;
-            color: #2D3436;
+        /* Ajuste de Margens Mobile */
+        .block-container {{
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
         }}
         
-        /* Centralização da Logo */
-        .logo-container {{
-            display: flex;
-            justify-content: center;
-            margin-bottom: 20px;
-        }}
-
-        /* Botão de Ação */
+        /* Fontes adaptáveis */
+        h1 {{ font-size: 24px !important; text-align: center; }}
+        h3 {{ font-size: 18px !important; }}
+        
+        /* Botões Estilo Mobile */
         .stButton>button {{
             width: 100%;
-            border-radius: 8px;
+            height: 50px;
+            border-radius: 12px;
+            font-size: 16px;
+            text-transform: uppercase;
             background-color: #FF4B4B;
-            color: white;
-            border: none;
-            padding: 12px;
-            font-weight: 700;
-            transition: 0.3s all;
-        }}
-        .stButton>button:hover {{
-            background-color: #D63031;
-            box-shadow: 0 4px 15px rgba(255, 75, 75, 0.3);
+            font-weight: bold;
         }}
 
-        /* Abas */
+        /* Inputs mais altos para toque */
+        .stTextArea textarea {{
+            font-size: 16px !important;
+        }}
+
+        /* Estilização das Abas para Mobile */
         .stTabs [data-baseweb="tab-list"] {{
-            justify-content: center;
-            gap: 15px;
+            gap: 5px;
         }}
-        .stTabs [aria-selected="true"] {{
-            color: #FF4B4B !important;
-            border-bottom-color: #FF4B4B !important;
+        .stTabs [data-baseweb="tab"] {{
+            padding-left: 10px;
+            padding-right: 10px;
+            font-size: 12px;
         }}
+
+        /* Esconder o menu do Streamlit para parecer App */
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO CENTRAL ---
-st.markdown(f"""
-    <div class="logo-container">
-        <img src="{URL_LOGO}" style="max-height: 100px;">
-    </div>
-    <h1 style='text-align: center; color: #1E1E1E; margin-bottom: 5px;'>Elite WODRank</h1>
-    <p style='text-align: center; color: #636E72; font-style: italic; margin-bottom: 30px;'>Onde cada repetição conta.</p>
-""", unsafe_allow_html=True)
+# --- LOGO CENTRALIZADA ---
+st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" width="80"></div>', unsafe_allow_html=True)
+st.markdown("<h1 style='margin-bottom: 0;'>Elite WODRank</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #666; font-size: 14px;'>Cada repetição conta.</p>", unsafe_allow_html=True)
 
 # --- FUNÇÕES ---
 def formatar_tabela_bonita(df):
@@ -81,15 +80,15 @@ def calcular_pontos_dinamico(index_linear):
     if pos == 3: return 90
     return max(10, 90 - (pos - 3))
 
-# --- DASHBOARD CENTRAL ---
-aba1, aba2, aba3 = st.tabs(["➕ REGISTRAR", "📅 HISTÓRICO", "🏆 ELITE RANK"])
+# --- ABAS ---
+aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 RANKING"])
 
 with aba1:
-    st.markdown("### 📥 Registrar Treino")
-    data_treino = st.date_input("Data do WOD", datetime.now())
-    txt_input = st.text_area("Resultados (NOME TEMPO)", height=150, placeholder="Ex: JOÃO 12:45")
+    st.markdown("### 📥 Adicionar Resultados")
+    data_treino = st.date_input("Data", datetime.now())
+    txt_input = st.text_area("Lista (NOME TEMPO)", height=150, placeholder="Ex: NEYMAR 12:45")
     
-    if st.button("GERAR PRÉVIA"):
+    if st.button("VISUALIZAR"):
         if txt_input:
             dados = []
             linhas = txt_input.strip().split('\n')
@@ -106,35 +105,33 @@ with aba1:
 
     if st.session_state.get("show_preview"):
         st.markdown("---")
-        st.subheader("Prévia do Ranking")
-        st.table(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)))
-        if st.button("🚀 SALVAR RESULTADOS"):
+        st.dataframe(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)), use_container_width=True, hide_index=True)
+        if st.button("💾 SALVAR TUDO"):
             requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-            st.success("Sincronizado com sucesso!")
+            st.success("Salvo!")
             st.balloons()
             st.session_state.show_preview = False
 
 with aba2:
-    st.markdown("### 🔍 Histórico por Data")
-    if st.button("🔄 Sincronizar"): st.cache_data.clear()
+    st.markdown("### 🔍 Consultar")
+    if st.button("🔄 ATUALIZAR"): st.cache_data.clear()
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         if not df_hist.empty:
             datas = sorted(df_hist["Data"].unique(), reverse=True)
-            data_sel = st.selectbox("Escolha o dia:", datas)
-            st.table(formatar_tabela_bonita(df_hist[df_hist["Data"] == data_sel]))
-    except: st.info("Buscando dados na planilha...")
+            data_sel = st.selectbox("Data do WOD:", datas)
+            st.dataframe(formatar_tabela_bonita(df_hist[df_hist["Data"] == data_sel]), use_container_width=True, hide_index=True)
+    except: st.info("Buscando...")
 
 with aba3:
-    st.markdown("### 🔥 Top Performance Acumulada")
+    st.markdown("### 🏆 Elite Acumulado")
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
-            # Métricas centrais
-            m1, m2, m3 = st.columns(3)
+            # Métricas em colunas pequenas para Mobile
+            m1, m2 = st.columns(2)
             m1.metric("Atletas", df_geral["Nome"].nunique())
             m2.metric("WODs", len(df_geral["Data"].unique()))
-            m3.metric("Frequência", f"{len(df_geral)/df_geral['Nome'].nunique():.1f}")
 
             lista_acumulada = []
             for d in df_geral["Data"].unique():
@@ -143,14 +140,14 @@ with aba3:
                 lista_acumulada.append(dia[['Nome', 'Pontos']])
             
             rank_final = pd.concat(lista_acumulada).groupby("Nome").agg(
-                PONTOS=('Pontos', 'sum'), WODS=('Nome', 'count')
-            ).sort_values("PONTOS", ascending=False).reset_index()
+                PTS=('Pontos', 'sum'), WODS=('Nome', 'count')
+            ).sort_values("PTS", ascending=False).reset_index()
             
+            # Ranking simplificado para tela pequena
             rank_final.insert(0, '#', [f"{i+1}º" for i in range(len(rank_final))])
             
             st.dataframe(
-                rank_final.style.highlight_max(axis=0, subset=['PONTOS'], color='#FEF3C7'),
+                rank_final.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'),
                 use_container_width=True, hide_index=True
             )
-            st.caption("PONTUAÇÃO: 1º(100), 2º(95), 3º(90), demais -1pt por posição.")
-    except: st.info("O ranking aparecerá aqui após o primeiro registro.")
+    except: st.info("Sem dados.")
