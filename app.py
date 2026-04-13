@@ -10,7 +10,7 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="wide", page_icon="🏆")
 
-# --- DESIGN SYSTEM ---
+# --- DESIGN SYSTEM (CORREÇÃO DE CHAVES DUPLAS) ---
 st.markdown(f"""
     <style>
         .stApp {{ background-color: #0E1117; color: #E0E0E0; }}
@@ -20,7 +20,7 @@ st.markdown(f"""
             background: linear-gradient(90deg, #FF4B4B 0%, #CC3333 100%);
             color: white; border: none; padding: 12px; font-weight: 700;
             text-transform: uppercase; transition: 0.3s all;
-        }
+        }}
         .stButton>button:hover {{ transform: scale(1.02); box-shadow: 0 0 15px rgba(255, 75, 75, 0.4); }}
         .stTabs [data-baseweb="tab-list"] {{ gap: 24px; }}
         .stTabs [aria-selected="true"] {{ color: #FF4B4B !important; border-bottom: 2px solid #FF4B4B !important; }}
@@ -66,12 +66,11 @@ with aba1:
     with col_l:
         st.markdown("### 📥 Entrada")
         data_treino = st.date_input("Data do WOD", datetime.now())
-        txt_input = st.text_area("Lista (NOME TEMPO)", height=200)
+        txt_input = st.text_area("Lista (NOME TEMPO)", height=200, placeholder="PEDRO 12:30\nMARIA 13:00")
         
         if st.button("GERAR PRÉVIA"):
             if txt_input:
                 dados = []
-                # CORREÇÃO AQUI: String literal fechada corretamente
                 linhas = txt_input.strip().split('\n')
                 for l in linhas:
                     try:
@@ -119,4 +118,14 @@ with aba3:
 
             lista_acumulada = []
             for d in df_geral["Data"].unique():
-                dia
+                dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
+                dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
+                lista_acumulada.append(dia[['Nome', 'Pontos']])
+            
+            rank_final = pd.concat(lista_acumulada).groupby("Nome").agg(
+                PONTOS=('Pontos', 'sum'), WODS=('Nome', 'count')
+            ).sort_values("PONTOS", ascending=False).reset_index()
+            
+            rank_final.insert(0, '#', [f"{i+1}º" for i in range(len(rank_final))])
+            st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PONTOS'], color='#FF4B4B'), use_container_width=True, hide_index=True)
+    except: st.info("Ranking indisponível no momento.")
