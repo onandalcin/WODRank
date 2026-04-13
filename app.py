@@ -121,17 +121,37 @@ with aba1:
                     st.error("Erro de conexão.")
 
 with aba2:
-    st.markdown("### 🔍 Histórico")
-    if st.button("🔄 ATUALIZAR"): st.cache_data.clear()
+    st.markdown("### 🔍 Histórico por Turma")
+    if st.button("🔄 ATUALIZAR DADOS"): 
+        st.cache_data.clear()
+        
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         if not df_hist.empty:
+            # 1. Selecionar o Dia
             datas = sorted(df_hist["Data"].unique(), reverse=True)
             data_sel = st.selectbox("Escolha o dia:", datas)
+            
+            # Filtro inicial por dia
             df_dia = df_hist[df_hist["Data"] == data_sel].copy()
-            st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
-    except:
-        st.info("Aguardando registros...")
+            
+            # 2. Selecionar o Horário (Filtro novo)
+            horarios_disponiveis = ["Todos"] + sorted(df_dia["Horario"].unique().tolist())
+            horario_filtro = st.selectbox("Filtrar por Horário:", horarios_disponiveis)
+            
+            # Aplica o filtro de horário se não for "Todos"
+            if horario_filtro != "Todos":
+                df_final = df_dia[df_dia["Horario"] == horario_filtro].copy()
+                st.markdown(f"#### 🏆 Ranking das {horario_filtro}")
+            else:
+                df_final = df_dia
+                st.markdown(f"#### 🏆 Ranking Geral - {data_sel}")
+            
+            # Exibe a tabela com as medalhas e sem milissegundos
+            st.dataframe(formatar_tabela_bonita(df_final), use_container_width=True, hide_index=True)
+            
+    except Exception as e:
+        st.info("Aguardando registros na planilha...")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
