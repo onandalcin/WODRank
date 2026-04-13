@@ -32,13 +32,17 @@ def formatar_ranking(df):
     if len(df) >= 3: df.loc[3, 'Pos'] = "🥉 3º"
     return df[['Pos', 'Nome', 'Tempo']]
 
-def calcular_pontos(pos):
-    if "1º" in pos: return 10
-    if "2º" in pos: return 7
-    if "3º" in pos: return 5
-    return 1
+# LÓGICA DE PONTUAÇÃO DINÂMICA (PÓDIO FIXO + ESCALA DE 1 EM 1)
+def calcular_pontos_dinamico(pos_formatada, index_linear):
+    # index_linear começa em 0 para o primeiro da lista
+    posicao_num = index_linear + 1
+    if posicao_num == 1: return 100
+    if posicao_num == 2: return 95
+    if posicao_num == 3: return 90
+    # A partir do 4º lugar: 89, 88, 87...
+    return 90 - (posicao_num - 3)
 
-# --- ABAS (NOME DA TERCEIRA ABA ATUALIZADO) ---
+# --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🔥 Elite WODRank"])
 
 with aba1:
@@ -63,39 +67,42 @@ with aba1:
     if "display_df" in st.session_state:
         st.table(st.session_state.display_df)
         if st.button("💾 CONFIRMAR E SALVAR"):
-            with st.spinner("Enviando para o servidor..."):
+            with st.spinner("Processando Ranking..."):
                 requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success("✅ Dados salvos com sucesso!")
+                st.success("✅ Pontuação salva com sucesso!")
                 del st.session_state.display_df
 
 with aba2:
     st.subheader("Arquivo por Dia")
-    if st.button("🔄 Sincronizar Agora"): st.cache_data.clear()
+    if st.button("🔄 Sincronizar"): st.cache_data.clear()
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         datas = df_hist["Data"].unique()
         data_sel = st.selectbox("Escolha a data:", datas[::-1])
         st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
-    except: st.info("Buscando dados na planilha...")
+    except: st.info("Sincronize para ver o histórico.")
 
 with aba3:
-    # --- TÍTULO ATUALIZADO ---
     st.subheader("🏆 Elite WODRank") 
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
             lista_pontos = []
             for d in df_geral["Data"].unique():
-                dia = formatar_ranking(df_geral[df_geral["Data"] == d].copy())
-                dia['Pontos'] = dia['Pos'].apply(calcular_pontos)
+                # Obtém o ranking do dia ordenado por tempo
+                dia = df_geral[df_geral["Data"] == d].copy()
+                dia = dia.sort_values("Segundos").reset_index(drop=True)
+                
+                # Aplica a pontuação baseada na posição do índice
+                dia['Pontos'] = [calcular_pontos_dinamico("", i) for i in range(len(dia))]
                 lista_pontos.append(dia[['Nome', 'Pontos']])
             
             rank_final = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False).reset_index()
             
             def adicionar_trofeu(index):
-                if index == 0: return "🏆 1º"
-                if index == 1: return "🥈 2º"
-                if index == 2: return "🥉 3º"
+                if index == 0: return "🏆 Campeão"
+                if index == 1: return "🥈 Vice"
+                if index == 2: return "🥉 3º Lugar"
                 return f"{index + 1}º"
 
             rank_final['Rank'] = [adicionar_trofeu(i) for i in range(len(rank_final))]
@@ -107,5 +114,5 @@ with aba3:
                 hide_index=True
             )
             
-            st.caption("Sistema de Pontos: 🥇(10 pts), 🥈(7 pts), 🥉(5 pts), Outros (1 pt)")
-    except: st.info("O Elite WODRank será gerado após o registro do primeiro treino.")
+            st.info("📊 Regra Elite: 1º(100), 2º(95), 3º(90). Do 4º em diante, cai 1 ponto por posição.")
+    except: st.info("O Elite WODRank aparecerá após os registros.")
