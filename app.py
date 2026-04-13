@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
-import google.generativeai as genai
-from PIL import Image
 
 # --- CONFIGURAÇÕES ---
 URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwBOPsOjjiqiiSTxbiM5iGXSBuJKN848niP0TTeMkacDEkSFpuYe0meOGX0ASR9yncz/exec"
@@ -11,12 +9,6 @@ URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
-
-# --- CONFIGURAR IA ---
-if "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-else:
-    st.error("⚠️ Configure a GEMINI_API_KEY nos Secrets do Streamlit.")
 
 # --- CSS MOBILE-FIRST ---
 st.markdown(f"""
@@ -60,65 +52,41 @@ def calcular_pontos_dinamico(index_linear):
     if pos == 3: return 90
     return max(10, 90 - (pos - 3))
 
-def ler_quadro_ia(imagem):
-    try:
-        # Trocamos para o modelo 'gemini-pro-vision', que é o mais compatível
-        model = genai.GenerativeModel('gemini-pro-vision')
-        
-        prompt = """
-        Extraia os resultados deste quadro de Crossfit.
-        Formato: NOME TEMPO (ex: PAULO 19:20).
-        - Se houver 19' + 20, escreva 19:20.
-        - Se houver 18:35, escreva 18:35.
-        - Ignore nomes com apenas um traço '-'.
-        - Use apenas MAIÚSCULAS.
-        """
-        
-        response = model.generate_content([prompt, imagem])
-        return response.text
-    except Exception as e:
-        # Se mesmo assim falhar, tentamos o Flash com o nome simplificado
-        try:
-            model_flash = genai.GenerativeModel('gemini-1.5-flash')
-            response = model_flash.generate_content([prompt, imagem])
-            return response.text
-        except:
-            return f"Erro de API: O Google não reconheceu o modelo. Verifique sua cota ou região no Google AI Studio."
-
 # --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
 with aba1:
-    st.markdown("### 📝 Registrar Treino (Modo Rápido)")
+    st.markdown("### 📝 Modo Rápido (Entrada Manual)")
     
     col1, col2 = st.columns(2)
     with col1:
-        data_treino = st.date_input("Data", datetime.now())
+        data_treino = st.date_input("Data do WOD", datetime.now())
     with col2:
-        horario_sel = st.selectbox("Horário", ["06:00", "07:00", "16:20", "17:40", "18:30"])
+        horarios_box = ["06:00", "07:00", "16:20", "17:40", "18:30"]
+        horario_sel = st.selectbox("Horário da Turma", horarios_box)
 
-    st.info("💡 Dica: Digite 'NOME MINUTOS SEGUNDOS' (ex: PAULO 19 20). O app entende o espaço como separador.")
+    st.markdown("---")
+    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", height=250, 
+                             placeholder="Exemplo baseado na sua foto:\nGAMES 18 35\nPAULO 19 20\nCAMILA 18 23")
     
-    # Campo de texto limpo e direto
-    txt_input = st.text_area("Digite ou cole os resultados da foto:", height=300, placeholder="PAULO 19 20\nCAMILA 18 23\nGAMES 18 35")
-    
-    if st.button("GERAR RANKING DO DIA"):
+    if st.button("GERAR PRÉVIA DO RANKING"):
         if txt_input:
             dados = []
             linhas = txt_input.strip().split('\n')
             for l in linhas:
                 try:
-                    # Divide a linha: ex ["PAULO", "19", "20"] ou ["CAMILA", "18:23"]
-                    partes = l.replace("'", " ").replace(":", " ").replace("+", " ").split()
+                    # Limpa símbolos comuns que você vê no quadro
+                    limpo = l.replace("'", " ").replace(":", " ").replace("+", " ").strip()
+                    partes = limpo.split()
                     
                     if len(partes) >= 2:
-                        # O nome é tudo antes dos números
+                        # Pega tudo que não é número como Nome
                         nome = " ".join([p for p in partes if not p.isdigit()]).upper()
-                        # Os números são os tempos
-                        numeros = [p for p in partes if p.isdigit()]
+                        # Pega apenas os números para o Tempo
+                        nums = [p for p in partes if p.isdigit()]
                         
-                        minutos = int(numeros[0])
-                        segundos = int(numeros[1]) if len(numeros) > 1 else 0
+                        minutos = int(nums[0])
+                        segundos = int(nums[1]) if len(nums) > 1 else 0
                         
                         dados.append({
                             "Data": data_treino.strftime("%d/%m/%Y"),
@@ -134,23 +102,20 @@ with aba1:
                 st.session_state.show_preview = True
 
     if st.session_state.get("show_preview"):
-        st.markdown("### 👀 Revise o Pódio antes de Salvar")
+        st.markdown("#### Revisão do Pódio")
         df_previa = pd.DataFrame(st.session_state.ready_to_save)
         st.dataframe(formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
         
         if st.button("🚀 SALVAR NA PLANILHA"):
-            try:
-                res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                if res.status_code == 200:
-                    st.success("✅ Resultados de hoje gravados!")
-                    st.balloons()
-                    st.session_state.show_preview = False
-                    st.cache_data.clear()
-            except:
-                st.error("Erro ao salvar. Verifique sua conexão.")
+            res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+            if res.status_code == 200:
+                st.success("✅ Salvo!")
+                st.balloons()
+                st.session_state.show_preview = False
+                st.cache_data.clear()
 
 with aba2:
-    st.markdown("### 🔍 Histórico por Turma")
+    st.markdown("### 🔍 Histórico")
     if st.button("🔄 ATUALIZAR"): st.cache_data.clear()
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
@@ -159,10 +124,11 @@ with aba2:
             df_dia = df_hist[df_hist["Data"] == data_sel].copy()
             if "Horario" in df_dia.columns:
                 h_disp = ["Todos"] + sorted([str(h) for h in df_dia["Horario"].dropna().unique()])
-                h_filtro = st.selectbox("Filtrar Horário:", h_disp)
-                if h_filtro != "Todos": df_dia = df_dia[df_dia["Horario"].astype(str) == h_filtro]
+                h_filtro = st.selectbox("Filtrar por Horário:", h_disp)
+                if h_filtro != "Todos":
+                    df_dia = df_dia[df_dia["Horario"].astype(str) == h_filtro]
             st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
-    except: st.info("Sem registros.")
+    except: st.info("Aguardando registros...")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
