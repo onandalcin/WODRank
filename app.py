@@ -32,15 +32,12 @@ def formatar_ranking(df):
     if len(df) >= 3: df.loc[3, 'Pos'] = "🥉 3º"
     return df[['Pos', 'Nome', 'Tempo']]
 
-# LÓGICA DE PONTUAÇÃO DINÂMICA (PÓDIO FIXO + ESCALA DE 1 EM 1)
-def calcular_pontos_dinamico(pos_formatada, index_linear):
-    # index_linear começa em 0 para o primeiro da lista
+def calcular_pontos_dinamico(index_linear):
     posicao_num = index_linear + 1
     if posicao_num == 1: return 100
     if posicao_num == 2: return 95
     if posicao_num == 3: return 90
-    # A partir do 4º lugar: 89, 88, 87...
-    return 90 - (posicao_num - 3)
+    return max(10, 90 - (posicao_num - 3)) # Mínimo de 10 pontos por participar
 
 # --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🔥 Elite WODRank"])
@@ -67,9 +64,9 @@ with aba1:
     if "display_df" in st.session_state:
         st.table(st.session_state.display_df)
         if st.button("💾 CONFIRMAR E SALVAR"):
-            with st.spinner("Processando Ranking..."):
+            with st.spinner("Sincronizando..."):
                 requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success("✅ Pontuação salva com sucesso!")
+                st.success("✅ Pontuação acumulada!")
                 del st.session_state.display_df
 
 with aba2:
@@ -80,39 +77,40 @@ with aba2:
         datas = df_hist["Data"].unique()
         data_sel = st.selectbox("Escolha a data:", datas[::-1])
         st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
-    except: st.info("Sincronize para ver o histórico.")
+    except: st.info("Sincronize para ver os dados.")
 
 with aba3:
     st.subheader("🏆 Elite WODRank") 
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
-            lista_pontos = []
+            lista_acumulada = []
             for d in df_geral["Data"].unique():
-                # Obtém o ranking do dia ordenado por tempo
-                dia = df_geral[df_geral["Data"] == d].copy()
-                dia = dia.sort_values("Segundos").reset_index(drop=True)
-                
-                # Aplica a pontuação baseada na posição do índice
-                dia['Pontos'] = [calcular_pontos_dinamico("", i) for i in range(len(dia))]
-                lista_pontos.append(dia[['Nome', 'Pontos']])
+                dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
+                dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
+                lista_acumulada.append(dia[['Nome', 'Pontos']])
             
-            rank_final = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False).reset_index()
+            # Cálculo de Soma e Frequência
+            df_concat = pd.concat(lista_acumulada)
+            rank_final = df_concat.groupby("Nome").agg(
+                Total_Pontos=('Pontos', 'sum'),
+                Presenças=('Nome', 'count')
+            ).sort_values("Total_Pontos", ascending=False).reset_index()
             
             def adicionar_trofeu(index):
                 if index == 0: return "🏆 Campeão"
                 if index == 1: return "🥈 Vice"
-                if index == 2: return "🥉 3º Lugar"
+                if index == 2: return "🥉 3º"
                 return f"{index + 1}º"
 
             rank_final['Rank'] = [adicionar_trofeu(i) for i in range(len(rank_final))]
-            rank_final = rank_final[['Rank', 'Nome', 'Pontos']]
+            rank_final = rank_final[['Rank', 'Nome', 'Presenças', 'Total_Pontos']]
+            rank_final.columns = ['Rank', 'Atleta', 'WODs', 'Pontuação']
             
             st.dataframe(
-                rank_final.style.highlight_max(axis=0, subset=['Pontos'], color='#FFD700'),
+                rank_final.style.highlight_max(axis=0, subset=['Pontuação'], color='#FFD700'),
                 use_container_width=True,
                 hide_index=True
             )
-            
-            st.info("📊 Regra Elite: 1º(100), 2º(95), 3º(90). Do 4º em diante, cai 1 ponto por posição.")
-    except: st.info("O Elite WODRank aparecerá após os registros.")
+            st.caption("Estratégia: A constância é premiada. Quem treina mais, soma mais!")
+    except: st.info("O Elite WODRank aguarda o primeiro registro.")
