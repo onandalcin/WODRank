@@ -8,7 +8,12 @@ URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwBOPsOjjiqiiSTxbiM
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
-st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
+# --- AJUSTE PARA O WHATSAPP RECONHECER A LOGO ---
+st.set_page_config(
+    page_title="WOD Ranking Pro", 
+    layout="centered", 
+    page_icon=URL_LOGO  # <--- Aqui definimos sua logo como o ícone da página
+)
 
 # --- CSS MOBILE-FIRST ---
 st.markdown(f"""
@@ -51,19 +56,15 @@ st.markdown(f"""
 def formatar_tabela_bonita(df):
     if df.empty: return df
     
-    # Limpeza de milissegundos e formatação de tempo para garantir MM:SS
     def limpar_tempo(t):
-        t_str = str(t).split('.')[0] # Remove milissegundos se houver
+        t_str = str(t).split('.')[0] 
         if ':' in t_str:
             partes = t_str.split(':')
             if len(partes) >= 2:
-                # Garante formato 00:00
                 return f"{int(partes[-2]):02d}:{int(partes[-1]):02d}"
         return t_str
 
     df['Tempo'] = df['Tempo'].apply(limpar_tempo)
-    
-    # Ordena pelo menor tempo (Segundos)
     df = df.sort_values("Segundos").reset_index(drop=True)
     
     posicoes = []
@@ -126,7 +127,7 @@ with aba1:
     if st.session_state.get("show_preview"):
         st.markdown(f"**Turma das {horario_sel}**")
         df_previa = pd.DataFrame(st.session_state.ready_to_save)
-        st.dataframe(formatar_tabela_bon_ita := formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
+        st.dataframe(formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
         
         if st.button("🚀 CONFIRMAR E ENVIAR"):
             with st.spinner("Sincronizando..."):
@@ -136,7 +137,7 @@ with aba1:
                         st.success(f"✅ Dados das {horario_sel} salvos!")
                         st.balloons()
                         st.session_state.show_preview = False
-                        st.cache_data.clear() # Limpa o cache para atualizar o histórico
+                        st.cache_data.clear()
                     else:
                         st.error("Erro ao salvar.")
                 except:
