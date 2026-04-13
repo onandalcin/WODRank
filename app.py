@@ -29,7 +29,6 @@ st.markdown(f"""
             background-color: #1E1E1E; color: white; font-weight: bold;
         }}
         .stButton>button:hover {{ background-color: #FF4B4B; color: white; }}
-        #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}}
     </style>
 """, unsafe_allow_html=True)
 
@@ -37,21 +36,12 @@ st.markdown(f"""
 st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="200"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
 
 # --- FUNÇÕES DE FORMATAÇÃO ---
-def limpar_tempo_display(t):
-    t_str = str(t).split('.')[0] 
-    if ':' in t_str:
-        partes = t_str.split(':')
-        if len(partes) >= 2:
-            return f"{int(partes[-2]):02d}:{int(partes[-1]):02d}"
-    return t_str
-
 def formatar_tabela_bonita(df):
     if df.empty: return df
     df = df.copy()
-    df['Tempo'] = df['Tempo'].apply(limpar_tempo_display)
+    # Ordena por segundos (quem fez em menos tempo primeiro, CAPs ficam por último)
     df = df.sort_values("Segundos").reset_index(drop=True)
     
-    # Medalhas seguidas do número conforme solicitado
     posicoes = []
     for i in range(len(df)):
         if i == 0: posicoes.append("1º 🥇")
@@ -67,7 +57,7 @@ def calcular_pontos_dinamico(index_linear):
     if pos == 1: return 100
     if pos == 2: return 95
     if pos == 3: return 90
-    return max(10, 90 - (pos - 3))
+    return max(10, 90 - (pos - 3)) # Mínimo de 10 pontos
 
 # --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
@@ -82,14 +72,13 @@ with aba1:
         horarios_box = ["06:00", "07:00", "16:20", "17:40", "18:30"]
         horario_sel = st.selectbox("Horário da Turma", horarios_box)
 
-    # Lógica de limpeza robusta
     if "input_texto" not in st.session_state:
         st.session_state.input_texto = ""
 
     txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", 
                              value=st.session_state.input_texto,
                              height=200, 
-                             placeholder="Ex: GAMES 18 35\nPAULO 19 20",
+                             placeholder="Ex: PAULO 19 20\nALEX (sem tempo)",
                              key="campo_entrada")
     
     c1, c2 = st.columns(2)
@@ -102,16 +91,25 @@ with aba1:
                     try:
                         limpo = l.replace("'", " ").replace(":", " ").replace("+", " ").strip()
                         partes = limpo.split()
-                        if len(partes) >= 2:
+                        if len(partes) >= 1:
                             nome = " ".join([p for p in partes if not p.isdigit()]).upper()
                             nums = [p for p in partes if p.isdigit()]
-                            m = int(nums[0])
-                            s = int(nums[1]) if len(nums) > 1 else 0
-                            dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Horario": horario_sel, "Nome": nome, "Tempo": f"{m:02d}:{s:02d}", "Segundos": m*60 + s})
+                            
+                            if len(nums) >= 1:
+                                m = int(nums[0])
+                                s = int(nums[1]) if len(nums) > 1 else 0
+                                tempo_str = f"{m:02d}:{s:02d}"
+                                seg_total = m*60 + s
+                            else:
+                                tempo_str = "CAP"
+                                seg_total = 99999 # Para ficar no fim da lista
+                            
+                            if nome:
+                                dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Horario": horario_sel, "Nome": nome, "Tempo": tempo_str, "Segundos": seg_total})
                     except: continue
                 st.session_state.ready_to_save = dados
                 st.session_state.show_preview = True
-                st.rerun() # Garante que a prévia apareça
+                st.rerun()
     
     with c2:
         if st.button("🗑️ LIMPAR"):
@@ -165,7 +163,6 @@ with aba3:
         
         rank = pd.concat(lista_acum).groupby("Nome").agg(PTS=('Pontos', 'sum'), WDS=('Nome', 'count')).sort_values("PTS", ascending=False).reset_index()
         
-        # Medalhas no Ranking de Elite também
         pos_elite = []
         for i in range(len(rank)):
             if i == 0: pos_elite.append("1º 🥇")
