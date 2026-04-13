@@ -10,77 +10,135 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
+# --- CUSTOM CSS (A LATARIA) ---
+st.markdown("""
+    <style>
+        /* Fundo do App */
+        .main { background-color: #f8f9fa; }
+        
+        /* Estilização dos Botões */
+        .stButton>button {
+            width: 100%;
+            border-radius: 8px;
+            height: 3em;
+            background-color: #1E1E1E;
+            color: white;
+            border: none;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .stButton>button:hover {
+            background-color: #FF4B4B;
+            color: white;
+            border: none;
+        }
+
+        /* Input de Texto */
+        .stTextArea textarea {
+            border-radius: 10px !important;
+            border: 1px solid #ddd !important;
+        }
+
+        /* Tabelas */
+        .stDataFrame, .stTable {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        /* Tabs (Abas) */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 10px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: #eeeeee;
+            border-radius: 5px 5px 0 0;
+            padding: 10px 20px;
+            font-weight: bold;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #FF4B4B !important;
+            color: white !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- CABEÇALHO ---
 st.markdown(f"""
-    <div style='display: flex; align-items: center; gap: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 20px;'>
-        <img src='{URL_LOGO}' style='max-height: 90px; width: auto;'>
+    <div style='display: flex; align-items: center; gap: 20px; border-bottom: 3px solid #FF4B4B; padding-bottom: 20px; margin-bottom: 30px;'>
+        <img src='{URL_LOGO}' style='max-height: 90px; width: auto; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.2));'>
         <div>
-            <h1 style='margin: 0; font-size: 32px; color: #1E1E1E;'>WOD Ranking Pro</h1>
+            <h1 style='margin: 0; font-size: 32px; color: #1E1E1E; font-family: sans-serif;'>WOD Ranking Pro</h1>
             <p style='margin: 0; font-size: 18px; font-style: italic; color: #FF4B4B; font-weight: 500;'>Onde cada repetição conta.</p>
         </div>
     </div>
 """, unsafe_allow_html=True)
 
-# --- FUNÇÕES DE APOIO ---
+# --- FUNÇÕES ---
 def formatar_ranking(df):
     if df.empty: return df
     df = df.sort_values("Segundos").reset_index(drop=True)
     df.index += 1
     df['Pos'] = [f"{i}º" for i in df.index]
-    if len(df) >= 1: df.loc[1, 'Pos'] = "🥇 1º"
-    if len(df) >= 2: df.loc[2, 'Pos'] = "🥈 2º"
-    if len(df) >= 3: df.loc[3, 'Pos'] = "🥉 3º"
+    if len(df) >= 1: df.loc[1, 'Pos'] = "🥇"
+    if len(df) >= 2: df.loc[2, 'Pos'] = "🥈"
+    if len(df) >= 3: df.loc[3, 'Pos'] = "🥉"
     return df[['Pos', 'Nome', 'Tempo']]
 
 def calcular_pontos_dinamico(index_linear):
-    posicao_num = index_linear + 1
-    if posicao_num == 1: return 100
-    if posicao_num == 2: return 95
-    if posicao_num == 3: return 90
-    return max(10, 90 - (posicao_num - 3)) # Mínimo de 10 pontos por participar
+    pos = index_linear + 1
+    if pos == 1: return 100
+    if pos == 2: return 95
+    if pos == 3: return 90
+    return max(10, 90 - (pos - 3))
 
-# --- ABAS ---
-aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🔥 Elite WODRank"])
+# --- INTERFACE ---
+aba1, aba2, aba3 = st.tabs(["➕ REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE WODRANK"])
 
 with aba1:
-    st.subheader("Registrar Novo Treino")
-    data_treino = st.date_input("Data do WOD", datetime.now())
-    txt_input = st.text_area("Cole os tempos (Ex: PAULO 28:07)", height=150)
-    
-    if st.button("Gerar Ranking"):
-        if txt_input:
-            dados = []
-            for l in txt_input.strip().split('\n'):
-                try:
-                    p = l.rsplit(' ', 1)
-                    nome, tempo = p[0].upper(), p[1].replace("'", ":")
-                    m, s = map(int, tempo.split(':'))
-                    dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Nome": nome, "Tempo": tempo, "Segundos": m*60+s})
-                except: continue
-            if dados:
-                st.session_state.ready_to_save = dados
-                st.session_state.display_df = formatar_ranking(pd.DataFrame(dados))
+    with st.container():
+        st.markdown("### 📝 Entrada de Dados")
+        col_data, col_vazio = st.columns([1,1])
+        data_treino = col_data.date_input("Data do Treino", datetime.now())
+        
+        txt_input = st.text_area("Lista de Resultados", height=150, placeholder="Ex: JOÃO 15:30\nMARIA 16:45")
+        
+        if st.button("GERAR PRÉVIA DO RANKING"):
+            if txt_input:
+                dados = []
+                for l in txt_input.strip().split('\n'):
+                    try:
+                        p = l.rsplit(' ', 1)
+                        nome, tempo = p[0].upper(), p[1].replace("'", ":")
+                        m, s = map(int, tempo.split(':'))
+                        dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Nome": nome, "Tempo": tempo, "Segundos": m*60+s})
+                    except: continue
+                if dados:
+                    st.session_state.ready_to_save = dados
+                    st.session_state.display_df = formatar_ranking(pd.DataFrame(dados))
     
     if "display_df" in st.session_state:
+        st.markdown("---")
+        st.subheader(f"📊 Resultado: {data_treino.strftime('%d/%m/%Y')}")
         st.table(st.session_state.display_df)
-        if st.button("💾 CONFIRMAR E SALVAR"):
+        if st.button("💾 CONFIRMAR E ENVIAR PARA NUVEM"):
             with st.spinner("Sincronizando..."):
                 requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success("✅ Pontuação acumulada!")
+                st.success("✅ Tudo pronto! Pontos computados.")
                 del st.session_state.display_df
 
 with aba2:
-    st.subheader("Arquivo por Dia")
-    if st.button("🔄 Sincronizar"): st.cache_data.clear()
+    st.markdown("### 🔍 Consulta de Treinos")
+    if st.button("🔄 ATUALIZAR BANCO DE DADOS"): st.cache_data.clear()
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         datas = df_hist["Data"].unique()
-        data_sel = st.selectbox("Escolha a data:", datas[::-1])
+        data_sel = st.selectbox("Selecione o dia do WOD:", datas[::-1])
         st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
-    except: st.info("Sincronize para ver os dados.")
+    except: st.info("Nenhum dado encontrado.")
 
 with aba3:
-    st.subheader("🏆 Elite WODRank") 
+    st.markdown("### 🏆 Top Performance Acumulada")
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
@@ -90,27 +148,19 @@ with aba3:
                 dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
                 lista_acumulada.append(dia[['Nome', 'Pontos']])
             
-            # Cálculo de Soma e Frequência
             df_concat = pd.concat(lista_acumulada)
-            rank_final = df_concat.groupby("Nome").agg(
-                Total_Pontos=('Pontos', 'sum'),
-                Presenças=('Nome', 'count')
-            ).sort_values("Total_Pontos", ascending=False).reset_index()
+            rank_final = df_concat.groupby("Nome").agg(Total_Pontos=('Pontos', 'sum'), WODs=('Nome', 'count')).sort_values("Total_Pontos", ascending=False).reset_index()
             
-            def adicionar_trofeu(index):
-                if index == 0: return "🏆 Campeão"
-                if index == 1: return "🥈 Vice"
-                if index == 2: return "🥉 3º"
-                return f"{index + 1}º"
+            def trofeu_rank(i):
+                if i == 0: return "🏆 CAMPEÃO"
+                if i == 1: return "🥈 VICE"
+                if i == 2: return "🥉 3º LUGAR"
+                return f"{i+1}º"
 
-            rank_final['Rank'] = [adicionar_trofeu(i) for i in range(len(rank_final))]
-            rank_final = rank_final[['Rank', 'Nome', 'Presenças', 'Total_Pontos']]
-            rank_final.columns = ['Rank', 'Atleta', 'WODs', 'Pontuação']
+            rank_final['Rank'] = [trofeu_rank(i) for i in range(len(rank_final))]
+            rank_final = rank_final[['Rank', 'Nome', 'WODs', 'Total_Pontos']]
+            rank_final.columns = ['RANK', 'ATLETA', 'FREQ.', 'PONTOS']
             
-            st.dataframe(
-                rank_final.style.highlight_max(axis=0, subset=['Pontuação'], color='#FFD700'),
-                use_container_width=True,
-                hide_index=True
-            )
-            st.caption("Estratégia: A constância é premiada. Quem treina mais, soma mais!")
-    except: st.info("O Elite WODRank aguarda o primeiro registro.")
+            st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PONTOS'], color='#ffeeba'), use_container_width=True, hide_index=True)
+            st.success("A constância é a sua maior aliada no Elite WODRank.")
+    except: st.info("Inicie os registros para ver a elite.")
