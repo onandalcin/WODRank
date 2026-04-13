@@ -38,8 +38,8 @@ def calcular_pontos(pos):
     if "3º" in pos: return 5
     return 1
 
-# --- ABAS ---
-aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🌎 Ranking Geral"])
+# --- ABAS (NOME DA TERCEIRA ABA ATUALIZADO) ---
+aba1, aba2, aba3 = st.tabs(["➕ Registrar", "📅 Histórico", "🔥 Elite WODRank"])
 
 with aba1:
     st.subheader("Registrar Novo Treino")
@@ -63,9 +63,9 @@ with aba1:
     if "display_df" in st.session_state:
         st.table(st.session_state.display_df)
         if st.button("💾 CONFIRMAR E SALVAR"):
-            with st.spinner("Sincronizando..."):
+            with st.spinner("Enviando para o servidor..."):
                 requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success("✅ Salvo com sucesso!")
+                st.success("✅ Dados salvos com sucesso!")
                 del st.session_state.display_df
 
 with aba2:
@@ -76,40 +76,15 @@ with aba2:
         datas = df_hist["Data"].unique()
         data_sel = st.selectbox("Escolha a data:", datas[::-1])
         st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
-    except: st.info("Aguardando dados...")
+    except: st.info("Buscando dados na planilha...")
 
 with aba3:
-    st.subheader("🏆 Hall da Fama (Acumulado)")
+    # --- TÍTULO ATUALIZADO ---
+    st.subheader("🏆 Elite WODRank") 
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
             lista_pontos = []
             for d in df_geral["Data"].unique():
                 dia = formatar_ranking(df_geral[df_geral["Data"] == d].copy())
-                dia['Pontos'] = dia['Pos'].apply(calcular_pontos)
-                lista_pontos.append(dia[['Nome', 'Pontos']])
-            
-            # Agrupa e soma pontos
-            rank_final = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False).reset_index()
-            
-            # Adiciona Troféus no Ranking Geral
-            def adicionar_trofeu(index):
-                if index == 0: return "🏆 1º Lugar"
-                if index == 1: return "🥈 2º Lugar"
-                if index == 2: return "🥉 3º Lugar"
-                return f"{index + 1}º Lugar"
-
-            rank_final['Posição'] = [adicionar_trofeu(i) for i in range(len(rank_final))]
-            
-            # Organiza as colunas
-            rank_final = rank_final[['Posição', 'Nome', 'Pontos']]
-            
-            # Exibição com destaque para o campeão
-            st.dataframe(
-                rank_final.style.highlight_max(axis=0, subset=['Pontos'], color='#FFD700'),
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            st.caption("Pontuação: 🥇(10), 🥈(7), 🥉(5), Participação(1)")
-    except: st.info("O ranking geral aparecerá aqui após o primeiro registro.")
+                dia['Pontos
