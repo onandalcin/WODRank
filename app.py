@@ -2,84 +2,65 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
-import google.generativeai as genai
-from PIL import Image
 
 # --- CONFIGURAÇÕES ---
 URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJNPmjlFKvi2B7oY_HQONeh92HIQ_EpZc6ysKHkeus6V4nxMHT/exec"
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
-# --- CONFIGURAR GEMINI IA ---
-# DICA: No Streamlit Cloud, salve sua chave em 'Secrets' como GEMINI_API_KEY
-API_KEY = st.secrets.get("GEMINI_API_KEY", "SUA_CHAVE_AQUI")
-genai.configure(api_key=API_KEY)
-
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
 
 # --- CSS MOBILE-FIRST ---
 st.markdown(f"""
     <style>
-        .block-container {{ padding: 1rem 0.8rem; }}
+        .block-container {{
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            padding-left: 0.8rem;
+            padding-right: 0.8rem;
+        }}
         h1 {{ font-size: 26px !important; text-align: center; }}
         .stButton>button {{
-            width: 100%; height: 52px; border-radius: 12px;
-            font-size: 16px; text-transform: uppercase;
-            background-color: #1E1E1E; color: white; font-weight: bold;
+            width: 100%;
+            height: 52px;
+            border-radius: 12px;
+            font-size: 16px;
+            text-transform: uppercase;
+            background-color: #1E1E1E;
+            color: white;
+            font-weight: bold;
+            transition: 0.3s;
         }}
         .stButton>button:hover {{ background-color: #FF4B4B; color: white; }}
-        #MainMenu {{visibility: hidden;}} footer {{visibility: hidden;}}
+        .stTabs [data-baseweb="tab-list"] {{ justify-content: center; gap: 10px; }}
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO ---
-st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="240"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
+# --- CABEÇALHO (LOGO 3X MAIOR) ---
+st.markdown(f"""
+    <div style="text-align: center; margin-top: -10px; margin-bottom: 10px;">
+        <img src="{URL_LOGO}" height="240">
+        <h1 style='margin-top: 10px; margin-bottom: 0;'>WOD Ranking Pro</h1>
+        <p style='color: #FF4B4B; font-style: italic; font-weight: 500;'>Onde cada repetição conta.</p>
+    </div>
+""", unsafe_allow_html=True)
 
 # --- FUNÇÕES ---
 def formatar_tabela_bonita(df):
     if df.empty: return df
+    # Ordena pelo menor tempo (Segundos)
     df = df.sort_values("Segundos").reset_index(drop=True)
     posicoes = []
-    for i in range(1, len(df) + 1):
-        if i == 1: posicoes.append("1º 🥇")
-        elif i == 2: posicoes.append("2º 🥈")
-        elif i == 3: posicoes.append("3º 🥉")
-        else: posicoes.append(f"{i}º")
+    for i in range(len(df)):
+        num = i + 1
+        if num == 1: posicoes.append("1º 🥇")
+        elif num == 2: posicoes.append("2º 🥈")
+        elif num == 3: posicoes.append("3º 🥉")
+        else: posicoes.append(f"{num}º")
     df.insert(0, 'Pos', posicoes)
     return df[['Pos', 'Nome', 'Tempo']]
-
-def ler_quadro_com_ia(imagem):
-    try:
-        # Mudamos para o identificador mais estável
-        model = genai.GenerativeModel('gemini-1.0-pro-vision')
-        
-        prompt = """
-        Você é um assistente de cronometragem de Crossfit. 
-        Analise a imagem do quadro branco e extraia os dados.
-        Regras:
-        1. Retorne APENAS no formato: NOME TEMPO
-        2. Ignore marcas como '+500' ou '+4', use apenas o tempo (ex: 34:00).
-        3. Se o tempo for algo como 34'4, converta para 34:04.
-        4. Tudo em MAIÚSCULO.
-        
-        Exemplo de saída:
-        PAULO 28:07
-        DIEGO 28:39
-        """
-        
-        # A API do Gemini exige que a imagem seja passada em uma lista com o prompt
-        response = model.generate_content([prompt, imagem])
-        
-        # O Gemini pode bloquear por segurança se achar que há rostos, 
-        # então verificamos se a resposta tem texto.
-        if response.parts:
-            return response.text
-        else:
-            return "A IA não conseguiu ler os dados. Tente tirar a foto mais de perto do quadro."
-            
-    except Exception as e:
-        # Caso o erro 404 continue, o erro será detalhado aqui
-        return f"Erro ao acessar o modelo: {str(e)}"
 
 def calcular_pontos_dinamico(index_linear):
     pos = index_linear + 1
@@ -93,72 +74,77 @@ aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
 with aba1:
     st.markdown("### 📝 Registrar Treino")
-    data_treino = st.date_input("Data do WOD", datetime.now())
     
-    # Novo botão para Foto
-    arquivo_foto = st.file_uploader("📷 Tirar Foto ou Subir Imagem do Quadro", type=['jpg', 'jpeg', 'png'])
-    
-    if arquivo_foto:
-        img = Image.open(arquivo_foto)
-        st.image(img, caption="Imagem carregada", use_container_width=True)
-        if st.button("🤖 ESCANEAR QUADRO COM IA"):
-            with st.spinner("Analisando caligrafia..."):
-                texto_ia = ler_quadro_com_ia(img)
-                st.session_state.texto_input = texto_ia
-                st.success("Leitura finalizada! Ajuste os dados abaixo se necessário.")
+    # Seleção de Data e Horário
+    col1, col2 = st.columns(2)
+    with col1:
+        data_treino = st.date_input("Data do WOD", datetime.now())
+    with col2:
+        horarios_box = ["06:00", "07:00", "16:20", "17:40", "18:30"]
+        horario_sel = st.selectbox("Horário da Turma", horarios_box)
 
-    # Campo de texto (preenchido pela IA ou manual)
-    valor_atual = st.session_state.get("texto_input", "")
-    txt_input = st.text_area("Dados extraídos (NOME TEMPO)", value=valor_atual, height=200)
+    st.markdown("---")
+    txt_input = st.text_area("Lista (NOME TEMPO)", height=150, placeholder="Ex: JOÃO 12:45\nMARIA 13:20")
     
     if st.button("GERAR PRÉVIA DO RANKING"):
         if txt_input:
             dados = []
-            for l in txt_input.strip().split('\n'):
+            linhas = txt_input.strip().split('\n')
+            for l in linhas:
                 try:
-                    partes = l.rsplit(' ', 1)
-                    nome = partes[0].upper()
-                    tempo = partes[1].replace("'", ":").replace('"', ":")
-                    m, s = map(int, tempo.split(':')[:2])
+                    p = l.rsplit(' ', 1)
+                    nome, tempo = p[0].upper(), p[1].replace("'", ":")
+                    m, s = map(int, tempo.split(':'))
+                    
                     dados.append({
                         "Data": data_treino.strftime("%d/%m/%Y"),
+                        "Horario": horario_sel,
                         "Nome": nome,
                         "Tempo": f"{m:02d}:{s:02d}",
                         "Segundos": m*60+s
                     })
                 except: continue
+            
             if dados:
                 st.session_state.ready_to_save = dados
                 st.session_state.show_preview = True
 
     if st.session_state.get("show_preview"):
-        st.markdown("---")
+        st.markdown(f"**Turma das {horario_sel}**")
         df_previa = pd.DataFrame(st.session_state.ready_to_save)
         st.dataframe(formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
-        if st.button("🚀 SALVAR NO BANCO DE DADOS"):
+        
+        if st.button("🚀 CONFIRMAR E ENVIAR"):
             with st.spinner("Sincronizando..."):
                 requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success("✅ Tudo pronto! Pontos computados.")
+                st.success(f"✅ Dados das {horario_sel} salvos!")
                 st.balloons()
                 st.session_state.show_preview = False
-                if "texto_input" in st.session_state: del st.session_state.texto_input
 
 with aba2:
     st.markdown("### 🔍 Histórico")
-    if st.button("🔄 ATUALIZAR"): st.cache_data.clear()
+    if st.button("🔄 ATUALIZAR DADOS"): st.cache_data.clear()
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         if not df_hist.empty:
             datas = sorted(df_hist["Data"].unique(), reverse=True)
             data_sel = st.selectbox("Escolha o dia:", datas)
-            st.dataframe(formatar_tabela_bonita(df_hist[df_hist["Data"] == data_sel]), use_container_width=True, hide_index=True)
-    except: st.info("Buscando dados...")
+            
+            # Filtra por dia e exibe
+            df_dia = df_hist[df_hist["Data"] == data_sel]
+            st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.info("Aguardando registros na planilha...")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
     try:
         df_geral = pd.read_csv(URL_PLANILHA_CSV)
         if not df_geral.empty:
+            c1, c2 = st.columns(2)
+            c1.metric("Atletas", df_geral["Nome"].nunique())
+            c2.metric("Total WODs", len(df_geral["Data"].unique()))
+            
             lista_acumulada = []
             for d in df_geral["Data"].unique():
                 dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
@@ -169,7 +155,16 @@ with aba3:
                 PTS=('Pontos', 'sum'), WDS=('Nome', 'count')
             ).sort_values("PTS", ascending=False).reset_index()
             
-            posicoes_elite = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(rank_final))]
+            # Medalhas no Ranking de Elite
+            posicoes_elite = []
+            for i in range(len(rank_final)):
+                num = i + 1
+                if num == 1: posicoes_elite.append("1º 🥇")
+                elif num == 2: posicoes_elite.append("2º 🥈")
+                elif num == 3: posicoes_elite.append("3º 🥉")
+                else: posicoes_elite.append(f"{num}º")
+            
             rank_final.insert(0, '#', posicoes_elite)
             st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'), use_container_width=True, hide_index=True)
-    except: st.info("Sem dados suficientes.")
+    except Exception as e:
+        st.info("O ranking será gerado após o primeiro registro.")
