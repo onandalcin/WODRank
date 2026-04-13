@@ -50,31 +50,36 @@ def formatar_tabela_bonita(df):
 
 def ler_quadro_com_ia(imagem):
     try:
-        # Usamos o flash-1.5 que é o mais atual e rápido para OCR (leitura de imagem)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Mudamos para o identificador mais estável
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
         prompt = """
-        Analise a imagem deste quadro de horários de um box de Crossfit. 
-        Extraia os nomes dos alunos e seus respectivos tempos.
-        Retorne APENAS uma lista no formato: NOME TEMPO
-        Exemplo:
+        Você é um assistente de cronometragem de Crossfit. 
+        Analise a imagem do quadro branco e extraia os dados.
+        Regras:
+        1. Retorne APENAS no formato: NOME TEMPO
+        2. Ignore marcas como '+500' ou '+4', use apenas o tempo (ex: 34:00).
+        3. Se o tempo for algo como 34'4, converta para 34:04.
+        4. Tudo em MAIÚSCULO.
+        
+        Exemplo de saída:
         PAULO 28:07
-        EDSON 27:50
-        Ignore anotações como '+500' ou '+4', pegue apenas o tempo principal (ex: 34:00).
-        Converta tudo para MAIÚSCULO.
+        DIEGO 28:39
         """
         
-        # Chamada direta para geração de conteúdo com imagem
+        # A API do Gemini exige que a imagem seja passada em uma lista com o prompt
         response = model.generate_content([prompt, imagem])
         
-        if response.text:
+        # O Gemini pode bloquear por segurança se achar que há rostos, 
+        # então verificamos se a resposta tem texto.
+        if response.parts:
             return response.text
         else:
-            return "A IA não conseguiu gerar texto desta imagem. Tente uma foto mais clara."
+            return "A IA não conseguiu ler os dados. Tente tirar a foto mais de perto do quadro."
             
     except Exception as e:
-        # Se o erro 404 persistir, tentamos uma alternativa de nome de modelo
-        return f"Erro técnico na leitura: {str(e)}"
+        # Caso o erro 404 continue, o erro será detalhado aqui
+        return f"Erro ao acessar o modelo: {str(e)}"
 
 def calcular_pontos_dinamico(index_linear):
     pos = index_linear + 1
