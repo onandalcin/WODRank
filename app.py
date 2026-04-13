@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
+from difflib import get_close_matches
 
 # --- CONFIGURAÇÕES ---
-# URL ATUALIZADA CONFORME SUA SOLICITAÇÃO
 URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwBOPsOjjiqiiSTxbiM5iGXSBuJKN848niP0TTeMkacDEkSFpuYe0meOGX0ASR9yncz/exec"
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
-# Configuração da página para o WhatsApp usar sua logo
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
 
 # --- CSS MOBILE-FIRST ---
@@ -37,21 +36,18 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- FUNÇÕES ---
+def limpar_tempo(t):
+    t_str = str(t).split('.')[0] 
+    if ':' in t_str:
+        partes = t_str.split(':')
+        if len(partes) >= 2:
+            return f"{int(partes[-2]):02d}:{int(partes[-1]):02d}"
+    return t_str
+
 def formatar_tabela_bonita(df):
     if df.empty: return df
-    
-    # Limpeza de milissegundos para exibição
-    def limpar_tempo(t):
-        t_str = str(t).split('.')[0] 
-        if ':' in t_str:
-            partes = t_str.split(':')
-            if len(partes) >= 2:
-                return f"{int(partes[-2]):02d}:{int(partes[-1]):02d}"
-        return t_str
-
     df['Tempo'] = df['Tempo'].apply(limpar_tempo)
     df = df.sort_values("Segundos").reset_index(drop=True)
-    
     posicoes = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(df))]
     df.insert(0, 'Pos', posicoes)
     return df[['Pos', 'Nome', 'Tempo']]
@@ -62,6 +58,18 @@ def calcular_pontos_dinamico(index_linear):
     if pos == 2: return 95
     if pos == 3: return 90
     return max(10, 90 - (pos - 3))
+
+def validar_nomes(nomes_digitados, nomes_base):
+    if not nomes_base: return []
+    alertas = []
+    for nome in nomes_digitados:
+        if nome not in nomes_base:
+            sugestao = get_close_matches(nome, nomes_base, n=1, cutoff=0.8)
+            if sugestao:
+                alertas.append(f"⚠️ **{nome}** parece ser **{sugestao[0]}**. Verifique a escrita!")
+            else:
+                alertas.append(f"🆕 **{nome}** é um novo atleta? (Não encontrado no histórico)")
+    return alertas
 
 # --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
@@ -76,17 +84,26 @@ with aba1:
         horarios_box = ["06:00", "07:00", "16:20", "17:40", "18:30"]
         horario_sel = st.selectbox("Horário da Turma", horarios_box)
 
+    # Carregar nomes para validação
+    try:
+        df_hist_val = pd.read_csv(URL_PLANILHA_CSV)
+        nomes_conhecidos = df_hist_val["Nome"].unique().tolist()
+    except:
+        nomes_conhecidos = []
+
     st.markdown("---")
     txt_input = st.text_area("Lista (NOME TEMPO)", height=200, placeholder="Ex:\nJOÃO 12:45\nMARIA 13:20")
     
-    if st.button("GERAR PRÉVIA DO RANKING"):
+    if st.button("GERAR PRÉVIA E VALIDAR"):
         if txt_input:
             dados = []
+            nomes_para_validar = []
             linhas = txt_input.strip().split('\n')
             for l in linhas:
                 try:
                     p = l.rsplit(' ', 1)
-                    nome, tempo = p[0].upper(), p[1].replace("'", ":")
+                    nome = p[0].upper().strip()
+                    tempo = p[1].replace("'", ":")
                     m, s = map(int, tempo.split(':'))
                     dados.append({
                         "Data": data_treino.strftime("%d/%m/%Y"),
@@ -95,11 +112,19 @@ with aba1:
                         "Tempo": f"{m:02d}:{s:02d}",
                         "Segundos": m*60+s
                     })
+                    nomes_para_validar.append(nome)
                 except: continue
             
             if dados:
                 st.session_state.ready_to_save = dados
                 st.session_state.show_preview = True
+                
+                # Alertas de Validação
+                alertas = validar_nomes(nomes_para_validar, nomes_conhecidos)
+                if alertas:
+                    with st.expander("🔍 Verificação de Nomes", expanded=True):
+                        for a in alertas:
+                            st.warning(a)
 
     if st.session_state.get("show_preview"):
         st.markdown(f"**Revisão: Turma das {horario_sel}**")
@@ -122,46 +147,30 @@ with aba1:
 
 with aba2:
     st.markdown("### 🔍 Histórico por Turma")
-    if st.button("🔄 ATUALIZAR DADOS"): 
-        st.cache_data.clear()
+    if st.button("🔄 ATUALIZAR DADOS"): st.cache_data.clear()
         
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         if not df_hist.empty:
-            # 1. Selecionar o Dia
             datas = sorted(df_hist["Data"].unique(), reverse=True)
             data_sel = st.selectbox("Escolha o dia:", datas)
-            
-            # Filtro inicial por dia
             df_dia = df_hist[df_hist["Data"] == data_sel].copy()
             
-            # Verificamos se a coluna 'Horario' existe na sua planilha
             if "Horario" in df_dia.columns:
-                # Remove valores vazios para não quebrar o seletor
                 horarios_reais = df_dia["Horario"].dropna().unique().tolist()
                 horarios_disponiveis = ["Todos"] + sorted([str(h) for h in horarios_reais])
-                
                 horario_filtro = st.selectbox("Filtrar por Horário:", horarios_disponiveis)
                 
                 if horario_filtro != "Todos":
                     df_final = df_dia[df_dia["Horario"].astype(str) == horario_filtro].copy()
-                    st.markdown(f"#### 🏆 Ranking das {horario_filtro}")
                 else:
                     df_final = df_dia
-                    st.markdown(f"#### 🏆 Ranking Geral - {data_sel}")
             else:
-                # Se não tiver a coluna Horario, mostra o dia todo direto
                 df_final = df_dia
-                st.markdown(f"#### 🏆 Ranking Geral - {data_sel}")
             
-            # Exibe a tabela formatada
             st.dataframe(formatar_tabela_bonita(df_final), use_container_width=True, hide_index=True)
-        else:
-            st.info("A planilha está vazia.")
-            
     except Exception as e:
-        # Se der erro, mostraremos o que é para facilitar o ajuste
-        st.error(f"Erro ao ler dados: {e}")
+        st.info("Aguardando registros na planilha...")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
