@@ -87,4 +87,25 @@ with aba3:
             lista_pontos = []
             for d in df_geral["Data"].unique():
                 dia = formatar_ranking(df_geral[df_geral["Data"] == d].copy())
-                dia['Pontos
+                dia['Pontos'] = dia['Pos'].apply(calcular_pontos)
+                lista_pontos.append(dia[['Nome', 'Pontos']])
+            
+            rank_final = pd.concat(lista_pontos).groupby("Nome").sum().sort_values("Pontos", ascending=False).reset_index()
+            
+            def adicionar_trofeu(index):
+                if index == 0: return "🏆 1º"
+                if index == 1: return "🥈 2º"
+                if index == 2: return "🥉 3º"
+                return f"{index + 1}º"
+
+            rank_final['Rank'] = [adicionar_trofeu(i) for i in range(len(rank_final))]
+            rank_final = rank_final[['Rank', 'Nome', 'Pontos']]
+            
+            st.dataframe(
+                rank_final.style.highlight_max(axis=0, subset=['Pontos'], color='#FFD700'),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            st.caption("Sistema de Pontos: 🥇(10 pts), 🥈(7 pts), 🥉(5 pts), Outros (1 pt)")
+    except: st.info("O Elite WODRank será gerado após o registro do primeiro treino.")
