@@ -10,7 +10,7 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
 
-# --- FUNÇÃO DE LEITURA COM AUTO-LIMPEZA (Cache de 10 segundos) ---
+# --- FUNÇÃO DE LEITURA COM AUTO-LIMPEZA ---
 @st.cache_data(ttl=10)
 def ler_dados_planilha():
     try:
@@ -50,7 +50,15 @@ def formatar_tabela_bonita(df):
     df = df.copy()
     df['Tempo'] = df['Tempo'].apply(limpar_tempo_display)
     df = df.sort_values("Segundos").reset_index(drop=True)
-    posicoes = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(df))]
+    
+    # Medalhas seguidas do número conforme solicitado
+    posicoes = []
+    for i in range(len(df)):
+        if i == 0: posicoes.append("1º 🥇")
+        elif i == 1: posicoes.append("2º 🥈")
+        elif i == 2: posicoes.append("3º 🥉")
+        else: posicoes.append(f"{i+1}º")
+        
     df.insert(0, 'Pos', posicoes)
     return df[['Pos', 'Nome', 'Tempo']]
 
@@ -74,21 +82,22 @@ with aba1:
         horarios_box = ["06:00", "07:00", "16:20", "17:40", "18:30"]
         horario_sel = st.selectbox("Horário da Turma", horarios_box)
 
-    if "texto_input" not in st.session_state:
-        st.session_state.texto_input = ""
+    # Lógica de limpeza robusta
+    if "input_texto" not in st.session_state:
+        st.session_state.input_texto = ""
 
     txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", 
-                             value=st.session_state.texto_input,
+                             value=st.session_state.input_texto,
                              height=200, 
                              placeholder="Ex: GAMES 18 35\nPAULO 19 20",
-                             key="input_area")
+                             key="campo_entrada")
     
     c1, c2 = st.columns(2)
     with c1:
         if st.button("GERAR PRÉVIA"):
             if txt_input:
                 dados = []
-                st.session_state.texto_input = txt_input
+                st.session_state.input_texto = txt_input
                 for l in txt_input.strip().split('\n'):
                     try:
                         limpo = l.replace("'", " ").replace(":", " ").replace("+", " ").strip()
@@ -96,39 +105,42 @@ with aba1:
                         if len(partes) >= 2:
                             nome = " ".join([p for p in partes if not p.isdigit()]).upper()
                             nums = [p for p in partes if p.isdigit()]
-                            min = int(nums[0])
-                            seg = int(nums[1]) if len(nums) > 1 else 0
-                            dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Horario": horario_sel, "Nome": nome, "Tempo": f"{min:02d}:{seg:02d}", "Segundos": min*60 + seg})
+                            m = int(nums[0])
+                            s = int(nums[1]) if len(nums) > 1 else 0
+                            dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Horario": horario_sel, "Nome": nome, "Tempo": f"{m:02d}:{s:02d}", "Segundos": m*60 + s})
                     except: continue
                 st.session_state.ready_to_save = dados
                 st.session_state.show_preview = True
+                st.rerun() # Garante que a prévia apareça
     
     with c2:
         if st.button("🗑️ LIMPAR"):
-            st.session_state.texto_input = ""
+            st.session_state.input_texto = ""
+            if "ready_to_save" in st.session_state: del st.session_state.ready_to_save
             st.session_state.show_preview = False
             st.rerun()
 
-    if st.session_state.get("show_preview"):
+    if st.session_state.get("show_preview") and "ready_to_save" in st.session_state:
+        st.markdown("---")
         st.dataframe(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)), use_container_width=True, hide_index=True)
         if st.button("🚀 SALVAR RESULTADOS"):
             if requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save).status_code == 200:
-                st.success("Salvo!")
-                st.session_state.texto_input = ""
+                st.success("Salvo com sucesso!")
+                st.session_state.input_texto = ""
                 st.session_state.show_preview = False
                 st.cache_data.clear()
                 st.rerun()
 
 with aba2:
     st.markdown("### 🔍 Histórico")
-    if st.button("🔄 RECARREGAR PLANILHA"):
+    if st.button("🔄 RECARREGAR"):
         st.cache_data.clear()
         st.rerun()
     
     df_hist = ler_dados_planilha()
     if not df_hist.empty and "Data" in df_hist.columns:
         datas = sorted(df_hist["Data"].unique(), reverse=True)
-        data_sel = st.selectbox("Filtrar Dia:", datas)
+        data_sel = st.selectbox("Escolha o dia:", datas)
         df_dia = df_hist[df_hist["Data"] == data_sel].copy()
         
         if "Horario" in df_dia.columns:
@@ -139,7 +151,7 @@ with aba2:
         
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
     else:
-        st.info("O App está limpo. Aguardando novos registros da planilha.")
+        st.info("Planilha vazia ou em atualização.")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
@@ -150,8 +162,16 @@ with aba3:
             dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
             dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
             lista_acum.append(dia[['Nome', 'Pontos']])
+        
         rank = pd.concat(lista_acum).groupby("Nome").agg(PTS=('Pontos', 'sum'), WDS=('Nome', 'count')).sort_values("PTS", ascending=False).reset_index()
-        rank.insert(0, '#', [f"{i+1}º" for i in range(len(rank))])
+        
+        # Medalhas no Ranking de Elite também
+        pos_elite = []
+        for i in range(len(rank)):
+            if i == 0: pos_elite.append("1º 🥇")
+            elif i == 1: pos_elite.append("2º 🥈")
+            elif i == 2: pos_elite.append("3º 🥉")
+            else: pos_elite.append(f"{i+1}º")
+            
+        rank.insert(0, '#', pos_elite)
         st.dataframe(rank.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'), use_container_width=True, hide_index=True)
-    else:
-        st.info("Ranking será calculado assim que houver treinos registrados.")
