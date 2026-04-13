@@ -62,12 +62,29 @@ def calcular_pontos_dinamico(index_linear):
 
 def ler_quadro_ia(imagem):
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = "Extraia nomes e tempos deste quadro de Crossfit. Formato: NOME TEMPO. Se houver '+' (ex: 19' + 20), extraia como '19:20'. Ignore nomes com '-'."
+        # Forçamos o modelo com o prefixo completo
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        
+        prompt = """
+        Extraia nomes e resultados deste quadro de Crossfit.
+        Regras de Formatação:
+        1. Saída: NOME TEMPO (ex: PAULO 19:20)
+        2. Se houver '+' (ex: 19' + 20), extraia como '19:20'.
+        3. Se houver apenas um número após o nome, assuma como minutos.
+        4. Ignore nomes que tenham apenas um traço '-' ou 'CAP'.
+        5. Use apenas letras maiúsculas para os nomes.
+        """
+        
         response = model.generate_content([prompt, imagem])
         return response.text
     except Exception as e:
-        return f"Erro na leitura: {e}"
+        # Se o erro 404 persistir, tentamos o modelo pro como alternativa automática
+        try:
+            model_alt = genai.GenerativeModel('models/gemini-pro-vision')
+            response = model_alt.generate_content([prompt, imagem])
+            return response.text
+        except:
+            return f"Erro técnico na API do Google: {e}"
 
 # --- ABAS ---
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
