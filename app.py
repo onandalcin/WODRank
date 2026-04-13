@@ -3,80 +3,71 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-# --- CONFIGURAÇÕES DEFINITIVAS ---
+# --- CONFIGURAÇÕES ---
 URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyf22E2JWzgI3RchzVJNPmjlFKvi2B7oY_HQONeh92HIQ_EpZc6ysKHkeus6V4nxMHT/exec"
 URL_PLANILHA_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR3VB9L1Qgp6g4khGsXb1ZrPBJKeHJ-ZWVy8P0j1p5rBY0xZnHR7xiha7hEaE2fViZu8EZ86CVUqxWQ/pub?output=csv"
 URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
-st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon="🏆")
+st.set_page_config(page_title="WOD Ranking Pro", layout="wide", page_icon="🏆")
 
-# --- CUSTOM CSS (A LATARIA) ---
+# --- CSS AVANÇADO (LATARIA PREMIUM) ---
 st.markdown("""
     <style>
-        /* Fundo do App */
-        .main { background-color: #f8f9fa; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         
-        /* Estilização dos Botões */
+        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+        
+        /* Estilo dos Cards de Métricas */
+        [data-testid="stMetricValue"] { font-size: 28px; font-weight: 900; color: #FF4B4B; }
+        
+        /* Botões Arredondados e Modernos */
         .stButton>button {
-            width: 100%;
-            border-radius: 8px;
-            height: 3em;
-            background-color: #1E1E1E;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #1e1e1e, #2a2a2a);
             color: white;
             border: none;
-            font-weight: bold;
-            transition: 0.3s;
+            padding: 10px 24px;
+            font-weight: 700;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
         }
         .stButton>button:hover {
-            background-color: #FF4B4B;
-            color: white;
-            border: none;
+            transform: translateY(-2px);
+            background: #FF4B4B;
+            box-shadow: 0 6px 20px rgba(255, 75, 75, 0.4);
         }
 
-        /* Input de Texto */
-        .stTextArea textarea {
-            border-radius: 10px !important;
-            border: 1px solid #ddd !important;
-        }
-
-        /* Tabelas */
-        .stDataFrame, .stTable {
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        }
-
-        /* Tabs (Abas) */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 10px;
-        }
+        /* Tabs Personalizadas */
+        .stTabs [data-baseweb="tab-list"] { background-color: transparent; }
         .stTabs [data-baseweb="tab"] {
-            background-color: #eeeeee;
-            border-radius: 5px 5px 0 0;
-            padding: 10px 20px;
-            font-weight: bold;
+            font-weight: 700;
+            color: #888;
+            border-radius: 8px;
+            padding: 8px 20px;
         }
-        .stTabs [aria-selected="true"] {
-            background-color: #FF4B4B !important;
-            color: white !important;
-        }
+        .stTabs [aria-selected="true"] { color: #FF4B4B !important; border-bottom: 3px solid #FF4B4B !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO ---
-st.markdown(f"""
-    <div style='display: flex; align-items: center; gap: 20px; border-bottom: 3px solid #FF4B4B; padding-bottom: 20px; margin-bottom: 30px;'>
-        <img src='{URL_LOGO}' style='max-height: 90px; width: auto; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.2));'>
-        <div>
-            <h1 style='margin: 0; font-size: 32px; color: #1E1E1E; font-family: sans-serif;'>WOD Ranking Pro</h1>
-            <p style='margin: 0; font-size: 18px; font-style: italic; color: #FF4B4B; font-weight: 500;'>Onde cada repetição conta.</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+# --- SIDEBAR (IDENTIDADE VISUAL) ---
+with st.sidebar:
+    st.image(URL_LOGO, use_container_width=True)
+    st.title("WOD Ranking Pro")
+    st.markdown("---")
+    st.markdown("### 📣 Slogan")
+    st.info("*Onde cada repetição conta.*")
+    st.markdown("---")
+    st.caption("v2.0 | Pro Dashboard")
 
-# --- FUNÇÕES ---
-def formatar_ranking(df):
-    if df.empty: return df
+# --- LÓGICA DE DADOS ---
+def calcular_pontos_dinamico(index_linear):
+    pos = index_linear + 1
+    if pos == 1: return 100
+    if pos == 2: return 95
+    if pos == 3: return 90
+    return max(10, 90 - (pos - 3))
+
+def formatar_tabela_bonita(df):
     df = df.sort_values("Segundos").reset_index(drop=True)
     df.index += 1
     df['Pos'] = [f"{i}º" for i in df.index]
@@ -85,82 +76,49 @@ def formatar_ranking(df):
     if len(df) >= 3: df.loc[3, 'Pos'] = "🥉"
     return df[['Pos', 'Nome', 'Tempo']]
 
-def calcular_pontos_dinamico(index_linear):
-    pos = index_linear + 1
-    if pos == 1: return 100
-    if pos == 2: return 95
-    if pos == 3: return 90
-    return max(10, 90 - (pos - 3))
+# --- CONTEÚDO PRINCIPAL ---
+st.title("🚀 Dashboard de Performance")
 
-# --- INTERFACE ---
-aba1, aba2, aba3 = st.tabs(["➕ REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE WODRANK"])
+aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR WOD", "📅 HISTÓRICO", "🔥 ELITE WODRANK"])
 
 with aba1:
-    with st.container():
-        st.markdown("### 📝 Entrada de Dados")
-        col_data, col_vazio = st.columns([1,1])
-        data_treino = col_data.date_input("Data do Treino", datetime.now())
-        
-        txt_input = st.text_area("Lista de Resultados", height=150, placeholder="Ex: JOÃO 15:30\nMARIA 16:45")
-        
-        if st.button("GERAR PRÉVIA DO RANKING"):
-            if txt_input:
-                dados = []
-                for l in txt_input.strip().split('\n'):
-                    try:
-                        p = l.rsplit(' ', 1)
-                        nome, tempo = p[0].upper(), p[1].replace("'", ":")
-                        m, s = map(int, tempo.split(':'))
-                        dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Nome": nome, "Tempo": tempo, "Segundos": m*60+s})
-                    except: continue
-                if dados:
-                    st.session_state.ready_to_save = dados
-                    st.session_state.display_df = formatar_ranking(pd.DataFrame(dados))
+    col_input, col_preview = st.columns([1, 1], gap="large")
     
-    if "display_df" in st.session_state:
-        st.markdown("---")
-        st.subheader(f"📊 Resultado: {data_treino.strftime('%d/%m/%Y')}")
-        st.table(st.session_state.display_df)
-        if st.button("💾 CONFIRMAR E ENVIAR PARA NUVEM"):
-            with st.spinner("Sincronizando..."):
-                requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-                st.success("✅ Tudo pronto! Pontos computados.")
-                del st.session_state.display_df
+    with col_input:
+        st.markdown("### 📥 Entrada de Dados")
+        data_treino = st.date_input("Data do Treino", datetime.now())
+        txt_input = st.text_area("Resultados (Formato: Nome Tempo)", height=250, placeholder="PEDRO 12:40\nANA 13:05")
+        btn_preview = st.button("👁️ Visualizar Ranking")
+
+    with col_preview:
+        if btn_preview and txt_input:
+            dados = []
+            for l in txt_input.strip().split('\n'):
+                try:
+                    p = l.rsplit(' ', 1)
+                    nome, tempo = p[0].upper(), p[1].replace("'", ":")
+                    m, s = map(int, tempo.split(':'))
+                    dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Nome": nome, "Tempo": tempo, "Segundos": m*60+s})
+                except: continue
+            
+            if dados:
+                st.session_state.ready_to_save = dados
+                preview_df = formatar_tabela_bonita(pd.DataFrame(dados))
+                st.markdown("### 📊 Prévia do Ranking")
+                st.dataframe(preview_df, use_container_width=True, hide_index=True)
+                
+                if st.button("🚀 CONFIRMAR E SALVAR"):
+                    requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                    st.success("✅ Sincronizado com o Google Sheets!")
+                    st.balloons()
 
 with aba2:
     st.markdown("### 🔍 Consulta de Treinos")
-    if st.button("🔄 ATUALIZAR BANCO DE DADOS"): st.cache_data.clear()
+    if st.button("🔄 Sincronizar Histórico"): st.cache_data.clear()
+    
     try:
         df_hist = pd.read_csv(URL_PLANILHA_CSV)
         datas = df_hist["Data"].unique()
         data_sel = st.selectbox("Selecione o dia do WOD:", datas[::-1])
-        st.table(formatar_ranking(df_hist[df_hist["Data"] == data_sel]))
-    except: st.info("Nenhum dado encontrado.")
-
-with aba3:
-    st.markdown("### 🏆 Top Performance Acumulada")
-    try:
-        df_geral = pd.read_csv(URL_PLANILHA_CSV)
-        if not df_geral.empty:
-            lista_acumulada = []
-            for d in df_geral["Data"].unique():
-                dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
-                dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
-                lista_acumulada.append(dia[['Nome', 'Pontos']])
-            
-            df_concat = pd.concat(lista_acumulada)
-            rank_final = df_concat.groupby("Nome").agg(Total_Pontos=('Pontos', 'sum'), WODs=('Nome', 'count')).sort_values("Total_Pontos", ascending=False).reset_index()
-            
-            def trofeu_rank(i):
-                if i == 0: return "🏆 CAMPEÃO"
-                if i == 1: return "🥈 VICE"
-                if i == 2: return "🥉 3º LUGAR"
-                return f"{i+1}º"
-
-            rank_final['Rank'] = [trofeu_rank(i) for i in range(len(rank_final))]
-            rank_final = rank_final[['Rank', 'Nome', 'WODs', 'Total_Pontos']]
-            rank_final.columns = ['RANK', 'ATLETA', 'FREQ.', 'PONTOS']
-            
-            st.dataframe(rank_final.style.highlight_max(axis=0, subset=['PONTOS'], color='#ffeeba'), use_container_width=True, hide_index=True)
-            st.success("A constância é a sua maior aliada no Elite WODRank.")
-    except: st.info("Inicie os registros para ver a elite.")
+        
+        # Filtro
