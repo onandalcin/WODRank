@@ -135,23 +135,33 @@ with aba2:
             # Filtro inicial por dia
             df_dia = df_hist[df_hist["Data"] == data_sel].copy()
             
-            # 2. Selecionar o Horário (Filtro novo)
-            horarios_disponiveis = ["Todos"] + sorted(df_dia["Horario"].unique().tolist())
-            horario_filtro = st.selectbox("Filtrar por Horário:", horarios_disponiveis)
-            
-            # Aplica o filtro de horário se não for "Todos"
-            if horario_filtro != "Todos":
-                df_final = df_dia[df_dia["Horario"] == horario_filtro].copy()
-                st.markdown(f"#### 🏆 Ranking das {horario_filtro}")
+            # Verificamos se a coluna 'Horario' existe na sua planilha
+            if "Horario" in df_dia.columns:
+                # Remove valores vazios para não quebrar o seletor
+                horarios_reais = df_dia["Horario"].dropna().unique().tolist()
+                horarios_disponiveis = ["Todos"] + sorted([str(h) for h in horarios_reais])
+                
+                horario_filtro = st.selectbox("Filtrar por Horário:", horarios_disponiveis)
+                
+                if horario_filtro != "Todos":
+                    df_final = df_dia[df_dia["Horario"].astype(str) == horario_filtro].copy()
+                    st.markdown(f"#### 🏆 Ranking das {horario_filtro}")
+                else:
+                    df_final = df_dia
+                    st.markdown(f"#### 🏆 Ranking Geral - {data_sel}")
             else:
+                # Se não tiver a coluna Horario, mostra o dia todo direto
                 df_final = df_dia
                 st.markdown(f"#### 🏆 Ranking Geral - {data_sel}")
             
-            # Exibe a tabela com as medalhas e sem milissegundos
+            # Exibe a tabela formatada
             st.dataframe(formatar_tabela_bonita(df_final), use_container_width=True, hide_index=True)
+        else:
+            st.info("A planilha está vazia.")
             
     except Exception as e:
-        st.info("Aguardando registros na planilha...")
+        # Se der erro, mostraremos o que é para facilitar o ajuste
+        st.error(f"Erro ao ler dados: {e}")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
