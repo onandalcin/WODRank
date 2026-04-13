@@ -89,42 +89,65 @@ def ler_quadro_ia(imagem):
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
 with aba1:
-    st.markdown("### 📝 Registrar Treino")
-    col1, col2 = st.columns(2)
-    with col1: data_treino = st.date_input("Data", datetime.now())
-    with col2: horario_sel = st.selectbox("Horário", ["06:00", "07:00", "16:20", "17:40", "18:30"])
-
-    arquivo_foto = st.file_uploader("📷 Escanear Quadro Branco", type=['jpg', 'jpeg', 'png'])
-    if arquivo_foto:
-        img = Image.open(arquivo_foto)
-        st.image(img, caption="Foto carregada", use_container_width=True)
-        if st.button("🤖 EXTRAIR DADOS"):
-            with st.spinner("IA processando imagem..."):
-                st.session_state.texto_input = ler_quadro_ia(img)
-
-    txt_input = st.text_area("Lista Final (NOME TEMPO):", value=st.session_state.get("texto_input", ""), height=200)
+    st.markdown("### 📝 Registrar Treino (Modo Rápido)")
     
-    if st.button("GERAR PRÉVIA DO RANKING"):
+    col1, col2 = st.columns(2)
+    with col1:
+        data_treino = st.date_input("Data", datetime.now())
+    with col2:
+        horario_sel = st.selectbox("Horário", ["06:00", "07:00", "16:20", "17:40", "18:30"])
+
+    st.info("💡 Dica: Digite 'NOME MINUTOS SEGUNDOS' (ex: PAULO 19 20). O app entende o espaço como separador.")
+    
+    # Campo de texto limpo e direto
+    txt_input = st.text_area("Digite ou cole os resultados da foto:", height=300, placeholder="PAULO 19 20\nCAMILA 18 23\nGAMES 18 35")
+    
+    if st.button("GERAR RANKING DO DIA"):
         if txt_input:
             dados = []
-            for l in txt_input.strip().split('\n'):
+            linhas = txt_input.strip().split('\n')
+            for l in linhas:
                 try:
-                    p = l.rsplit(' ', 1)
-                    nome = p[0].upper().strip()
-                    tempo_raw = p[1].replace("'", ":").replace("+", ":").strip()
-                    m, s = map(int, tempo_raw.split(':')[:2])
-                    dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Horario": horario_sel, "Nome": nome, "Tempo": f"{m:02d}:{s:02d}", "Segundos": m*60+s})
+                    # Divide a linha: ex ["PAULO", "19", "20"] ou ["CAMILA", "18:23"]
+                    partes = l.replace("'", " ").replace(":", " ").replace("+", " ").split()
+                    
+                    if len(partes) >= 2:
+                        # O nome é tudo antes dos números
+                        nome = " ".join([p for p in partes if not p.isdigit()]).upper()
+                        # Os números são os tempos
+                        numeros = [p for p in partes if p.isdigit()]
+                        
+                        minutos = int(numeros[0])
+                        segundos = int(numeros[1]) if len(numeros) > 1 else 0
+                        
+                        dados.append({
+                            "Data": data_treino.strftime("%d/%m/%Y"),
+                            "Horario": horario_sel,
+                            "Nome": nome,
+                            "Tempo": f"{minutos:02d}:{segundos:02d}",
+                            "Segundos": minutos*60 + segundos
+                        })
                 except: continue
-            st.session_state.ready_to_save = dados
-            st.session_state.show_preview = True
+            
+            if dados:
+                st.session_state.ready_to_save = dados
+                st.session_state.show_preview = True
 
     if st.session_state.get("show_preview"):
-        st.dataframe(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)), use_container_width=True, hide_index=True)
-        if st.button("🚀 CONFIRMAR E SALVAR"):
-            requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
-            st.success("Salvo com sucesso!")
-            st.cache_data.clear()
-            st.session_state.show_preview = False
+        st.markdown("### 👀 Revise o Pódio antes de Salvar")
+        df_previa = pd.DataFrame(st.session_state.ready_to_save)
+        st.dataframe(formatar_tabela_bonita(df_previa), use_container_width=True, hide_index=True)
+        
+        if st.button("🚀 SALVAR NA PLANILHA"):
+            try:
+                res = requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save)
+                if res.status_code == 200:
+                    st.success("✅ Resultados de hoje gravados!")
+                    st.balloons()
+                    st.session_state.show_preview = False
+                    st.cache_data.clear()
+            except:
+                st.error("Erro ao salvar. Verifique sua conexão.")
 
 with aba2:
     st.markdown("### 🔍 Histórico por Turma")
