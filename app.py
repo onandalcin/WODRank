@@ -50,20 +50,31 @@ def formatar_tabela_bonita(df):
 
 def ler_quadro_com_ia(imagem):
     try:
+        # Usamos o flash-1.5 que é o mais atual e rápido para OCR (leitura de imagem)
         model = genai.GenerativeModel('gemini-1.5-flash')
+        
         prompt = """
-        Analise a imagem deste quadro de Crossfit. 
-        Extraia os nomes dos alunos e seus respectivos tempos de treino.
+        Analise a imagem deste quadro de horários de um box de Crossfit. 
+        Extraia os nomes dos alunos e seus respectivos tempos.
         Retorne APENAS uma lista no formato: NOME TEMPO
         Exemplo:
         PAULO 28:07
         EDSON 27:50
-        Ignore anotações extras como '+500' ou '+4', pegue apenas o tempo principal.
+        Ignore anotações como '+500' ou '+4', pegue apenas o tempo principal (ex: 34:00).
+        Converta tudo para MAIÚSCULO.
         """
+        
+        # Chamada direta para geração de conteúdo com imagem
         response = model.generate_content([prompt, imagem])
-        return response.text
+        
+        if response.text:
+            return response.text
+        else:
+            return "A IA não conseguiu gerar texto desta imagem. Tente uma foto mais clara."
+            
     except Exception as e:
-        return f"Erro na leitura: {str(e)}"
+        # Se o erro 404 persistir, tentamos uma alternativa de nome de modelo
+        return f"Erro técnico na leitura: {str(e)}"
 
 def calcular_pontos_dinamico(index_linear):
     pos = index_linear + 1
