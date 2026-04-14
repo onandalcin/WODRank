@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-import time # Importante para o truque da velocidade
+import time
 from datetime import datetime
 
 # --- CONFIGURAÇÕES ---
@@ -11,13 +11,12 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
 
-# --- FUNÇÃO DE LEITURA (FORÇANDO O GOOGLE A ATUALIZAR) ---
-@st.cache_data(ttl=2) # Cache de apenas 2 segundos
+# --- FUNÇÃO DE LEITURA COM BYPASS DE CACHE ---
+@st.cache_data(ttl=2)
 def ler_dados_planilha():
     try:
-        # Adicionamos um número aleatório no fim do link para o Google não entregar dado velho
-        url_limpa = f"{URL_PLANILHA_CSV}&t={int(time.time())}"
-        return pd.read_csv(url_limpa)
+        url_ignora_cache = f"{URL_PLANILHA_CSV}&cachebuster={int(time.time())}"
+        return pd.read_csv(url_ignora_cache)
     except:
         return pd.DataFrame()
 
@@ -36,12 +35,12 @@ def formatar_tabela_bonita(df):
     df.insert(0, 'Pos', posicoes)
     return df[['Pos', 'Nome', 'Tempo']]
 
-# --- INTERFACE ---
+# --- INTERFACE PRINCIPAL ---
 st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="180"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
 
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
-# --- ABA 1: REGISTRO ---
+# --- ABA 1: REGISTRO COM LIMPEZA DE NOMES ---
 with aba1:
     st.markdown("### 📝 Registrar Treino")
     c1, c2 = st.columns(2)
@@ -59,17 +58,32 @@ with aba1:
                 st.session_state.input_texto = txt_input
                 for l in txt_input.strip().split('\n'):
                     try:
+                        # Limpa caracteres especiais de tempo
                         limpo = l.replace("'", " ").replace(":", " ").replace("+", " ").strip()
                         partes = limpo.split()
+                        
                         if len(partes) >= 1:
-                            nome = " ".join([p for p in partes if not p.isdigit()]).upper()
+                            # 1. Extração e Limpeza Pesada do Nome (Anti-repetição)
+                            nome_sujo = " ".join([p for p in partes if not p.isdigit()]).upper()
+                            nome_limpo = nome_sujo.replace("-", "").replace("(", "").replace(")", "").strip()
+                            
+                            # 2. Processamento do Tempo
                             nums = [p for p in partes if p.isdigit()]
                             if len(nums) >= 1:
-                                m, s = int(nums[0]), (int(nums[1]) if len(nums) > 1 else 0)
+                                m = int(nums[0])
+                                s = int(nums[1]) if len(nums) > 1 else 0
                                 tempo_str, seg_total = f"{m:02d}:{s:02d}", m*60 + s
                             else:
                                 tempo_str, seg_total = "CAP", 99999
-                            if nome: dados.append({"Data": data_treino.strftime("%d/%m/%Y"), "Horario": horario_sel, "Nome": nome, "Tempo": tempo_str, "Segundos": seg_total})
+                            
+                            if nome_limpo:
+                                dados.append({
+                                    "Data": data_treino.strftime("%d/%m/%Y"),
+                                    "Horario": horario_sel,
+                                    "Nome": nome_limpo,
+                                    "Tempo": tempo_str,
+                                    "Segundos": seg_total
+                                })
                     except: continue
                 st.session_state.ready_to_save = dados
                 st.session_state.show_preview = True
@@ -83,15 +97,15 @@ with aba1:
             st.rerun()
 
     if st.session_state.get("show_preview") and "ready_to_save" in st.session_state:
+        st.markdown("---")
         st.dataframe(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)), use_container_width=True, hide_index=True)
         if st.button("🚀 SALVAR RESULTADOS"):
-            with st.spinner('Salvando...'):
-                if requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save).status_code == 200:
-                    st.success("Salvo com sucesso!")
-                    st.session_state.input_texto = ""
-                    st.session_state.show_preview = False
-                    st.cache_data.clear()
-                    st.rerun()
+            if requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save).status_code == 200:
+                st.success("Salvo com sucesso!")
+                st.session_state.input_texto = ""
+                st.session_state.show_preview = False
+                st.cache_data.clear()
+                st.rerun()
 
 # --- ABA 2: HISTÓRICO ---
 with aba2:
@@ -113,9 +127,9 @@ with aba2:
         
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
     else:
-        st.info("Aguardando registros da planilha...")
+        st.info("Aguardando registros...")
 
-# --- ABA 3: ELITE ---
+# --- ABA 3: RANKING ELITE ---
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
     df_geral = ler_dados_planilha()
@@ -125,6 +139,7 @@ with aba3:
             dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
             dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
             lista_acum.append(dia[['Nome', 'Pontos']])
+        
         rank = pd.concat(lista_acum).groupby("Nome").agg(PTS=('Pontos', 'sum'), WDS=('Nome', 'count')).sort_values("PTS", ascending=False).reset_index()
         pos_elite = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(rank))]
         rank.insert(0, '#', pos_elite)
