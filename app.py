@@ -10,7 +10,7 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
 
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=5) # Cache baixíssimo para você ver a limpeza na hora
 def ler_dados_planilha():
     try:
         return pd.read_csv(URL_PLANILHA_CSV)
@@ -22,7 +22,6 @@ def calcular_pontos_dinamico(index_linear):
     pos = index_linear + 1
     if pos == 1: return 100
     if pos == 2: return 95
-    # Decréscimo linear de 1 ponto
     pontuacao = 95 - (pos - 2)
     return max(80, pontuacao)
 
@@ -45,7 +44,7 @@ with aba1:
     with c2: horario_sel = st.selectbox("Horário", ["06:00", "07:00", "16:20", "17:40", "18:30"])
 
     if "input_texto" not in st.session_state: st.session_state.input_texto = ""
-    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", value=st.session_state.input_texto, height=200, key="campo_entrada")
+    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS (ou só o nome para CAP)", value=st.session_state.input_texto, height=200, key="campo_entrada")
     
     col_a, col_b = st.columns(2)
     with col_a:
@@ -96,31 +95,25 @@ with aba2:
     
     df_hist = ler_dados_planilha()
     if not df_hist.empty and "Data" in df_hist.columns:
-        # 1. Seleção do Dia
         datas = sorted(df_hist["Data"].unique(), reverse=True)
         data_sel = st.selectbox("Escolha o dia:", datas)
         df_dia = df_hist[df_hist["Data"] == data_sel].copy()
         
-        # 2. Filtro por Horário (Dinâmico)
         if "Horario" in df_dia.columns:
-            # Pega apenas horários que existem naquele dia específico
             h_disp = sorted([str(h) for h in df_dia["Horario"].dropna().unique()])
             h_opcoes = ["Todos"] + h_disp
             h_filtro = st.selectbox("Filtrar por Horário:", h_opcoes)
-            
             if h_filtro != "Todos":
                 df_dia = df_dia[df_dia["Horario"].astype(str) == h_filtro]
         
-        # 3. Exibição do Ranking da Turma
-        st.markdown(f"**Ranking - {data_sel} ({h_filtro})**")
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
     else:
-        st.info("Aguardando registros da planilha...")
+        st.info("O App está limpo. Aguardando novos registros.")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
     df_geral = ler_dados_planilha()
-    if not df_geral.empty:
+    if not df_geral.empty and "Data" in df_geral.columns:
         lista_acum = []
         for d in df_geral["Data"].unique():
             dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
