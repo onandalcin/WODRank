@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import time # Importante para o truque da velocidade
 from datetime import datetime
 
 # --- CONFIGURAÇÕES ---
@@ -10,10 +11,13 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
 
-@st.cache_data(ttl=5) # Cache baixíssimo para você ver a limpeza na hora
+# --- FUNÇÃO DE LEITURA (FORÇANDO O GOOGLE A ATUALIZAR) ---
+@st.cache_data(ttl=2) # Cache de apenas 2 segundos
 def ler_dados_planilha():
     try:
-        return pd.read_csv(URL_PLANILHA_CSV)
+        # Adicionamos um número aleatório no fim do link para o Google não entregar dado velho
+        url_limpa = f"{URL_PLANILHA_CSV}&t={int(time.time())}"
+        return pd.read_csv(url_limpa)
     except:
         return pd.DataFrame()
 
@@ -33,10 +37,11 @@ def formatar_tabela_bonita(df):
     return df[['Pos', 'Nome', 'Tempo']]
 
 # --- INTERFACE ---
-st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="200"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
+st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="180"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
 
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
+# --- ABA 1: REGISTRO ---
 with aba1:
     st.markdown("### 📝 Registrar Treino")
     c1, c2 = st.columns(2)
@@ -44,7 +49,7 @@ with aba1:
     with c2: horario_sel = st.selectbox("Horário", ["06:00", "07:00", "16:20", "17:40", "18:30"])
 
     if "input_texto" not in st.session_state: st.session_state.input_texto = ""
-    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS (ou só o nome para CAP)", value=st.session_state.input_texto, height=200, key="campo_entrada")
+    txt_input = st.text_area("Digite: NOME MINUTOS SEGUNDOS", value=st.session_state.input_texto, height=200, key="campo_entrada")
     
     col_a, col_b = st.columns(2)
     with col_a:
@@ -80,13 +85,15 @@ with aba1:
     if st.session_state.get("show_preview") and "ready_to_save" in st.session_state:
         st.dataframe(formatar_tabela_bonita(pd.DataFrame(st.session_state.ready_to_save)), use_container_width=True, hide_index=True)
         if st.button("🚀 SALVAR RESULTADOS"):
-            if requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save).status_code == 200:
-                st.success("Salvo!")
-                st.session_state.input_texto = ""
-                st.session_state.show_preview = False
-                st.cache_data.clear()
-                st.rerun()
+            with st.spinner('Salvando...'):
+                if requests.post(URL_GOOGLE_SCRIPT, json=st.session_state.ready_to_save).status_code == 200:
+                    st.success("Salvo com sucesso!")
+                    st.session_state.input_texto = ""
+                    st.session_state.show_preview = False
+                    st.cache_data.clear()
+                    st.rerun()
 
+# --- ABA 2: HISTÓRICO ---
 with aba2:
     st.markdown("### 🔍 Histórico por Turma")
     if st.button("🔄 RECARREGAR PLANILHA"):
@@ -99,17 +106,16 @@ with aba2:
         data_sel = st.selectbox("Escolha o dia:", datas)
         df_dia = df_hist[df_hist["Data"] == data_sel].copy()
         
-        if "Horario" in df_dia.columns:
-            h_disp = sorted([str(h) for h in df_dia["Horario"].dropna().unique()])
-            h_opcoes = ["Todos"] + h_disp
-            h_filtro = st.selectbox("Filtrar por Horário:", h_opcoes)
-            if h_filtro != "Todos":
-                df_dia = df_dia[df_dia["Horario"].astype(str) == h_filtro]
+        h_disp = sorted([str(h) for h in df_dia["Horario"].dropna().unique()])
+        h_filtro = st.selectbox("Filtrar por Horário:", ["Todos"] + h_disp)
+        if h_filtro != "Todos":
+            df_dia = df_dia[df_dia["Horario"].astype(str) == h_filtro]
         
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
     else:
-        st.info("O App está limpo. Aguardando novos registros.")
+        st.info("Aguardando registros da planilha...")
 
+# --- ABA 3: ELITE ---
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
     df_geral = ler_dados_planilha()
