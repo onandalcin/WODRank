@@ -32,12 +32,15 @@ def formatar_segundos_para_tempo(segundos_totais):
     s = int(segundos_totais % 60)
     return f"{m:02d}:{s:02d}"
 
+# --- FUNÇÃO CORRIGIDA PARA EXIBIR HORÁRIO ---
 def formatar_tabela_bonita(df):
     if df.empty: return df
+    # Ordena por tempo (segundos)
     df = df.copy().sort_values("Segundos").reset_index(drop=True)
     posicoes = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(df))]
     df.insert(0, 'Pos', posicoes)
-    return df[['Pos', 'Nome', 'Tempo']]
+    # Retorna com a coluna Horario incluída
+    return df[['Pos', 'Horario', 'Nome', 'Tempo']]
 
 # --- INTERFACE ---
 st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="180"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
@@ -75,9 +78,22 @@ with aba2:
     if st.button("🔄 ATUALIZAR"): st.cache_data.clear(); st.rerun()
     df_h = ler_dados_planilha()
     if not df_h.empty:
-        d_sel = st.selectbox("Dia:", sorted(df_h["Data"].unique(), reverse=True))
-        df_dia = df_h[df_h["Data"] == d_sel].copy()
-        st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
+        # Garante que a coluna Data exista
+        if "Data" in df_h.columns:
+            d_sel = st.selectbox("Dia:", sorted(df_h["Data"].unique(), reverse=True))
+            df_dia = df_h[df_h["Data"] == d_sel].copy()
+            
+            # Filtro de Horário
+            h_opcoes = ["Todos"] + sorted([str(h) for h in df_dia["Horario"].dropna().unique()])
+            h_f = st.selectbox("Filtrar por Horário:", h_opcoes)
+            
+            if h_f != "Todos":
+                df_dia = df_dia[df_dia["Horario"].astype(str) == h_f]
+            
+            # Exibição com a tabela formatada (incluindo horário)
+            st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
+        else:
+            st.error("Coluna 'Data' não encontrada na planilha.")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
@@ -90,7 +106,6 @@ with aba3:
             dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
             lista_acum.append(dia[['Nome', 'Pontos', 'Segundos']])
         
-        # Agregando: Pontos (Soma), Wods (Contagem), Segundos (Soma para desempate)
         df_concat = pd.concat(lista_acum)
         rank = df_concat.groupby("Nome").agg(
             PTS=('Pontos', 'sum'), 
@@ -98,17 +113,10 @@ with aba3:
             SEC_TOTAL=('Segundos', 'sum')
         ).reset_index()
         
-        # ORDENAÇÃO: 
-        # 1. Pontos (Descendente)
-        # 2. WODs (Descendente)
-        # 3. Segundos Totais (ASCENDENTE - Menos tempo é melhor)
         rank = rank.sort_values(by=['PTS', 'WDS', 'SEC_TOTAL'], ascending=[False, False, True]).reset_index(drop=True)
-
-        # Formata o tempo total para exibição
         rank['TEMPO TOTAL'] = rank['SEC_TOTAL'].apply(formatar_segundos_para_tempo)
         
         pos_e = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(rank))]
         rank.insert(0, '#', pos_e)
         
-        # Exibe apenas as colunas relevantes
         st.dataframe(rank[['#', 'Nome', 'PTS', 'WDS', 'TEMPO TOTAL']], use_container_width=True, hide_index=True)
