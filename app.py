@@ -89,15 +89,33 @@ with aba1:
                 st.rerun()
 
 with aba2:
-    st.markdown("### 🔍 Histórico")
-    if st.button("🔄 RECARREGAR"):
+    st.markdown("### 🔍 Histórico por Turma")
+    if st.button("🔄 RECARREGAR PLANILHA"):
         st.cache_data.clear()
         st.rerun()
+    
     df_hist = ler_dados_planilha()
-    if not df_hist.empty:
-        data_sel = st.selectbox("Dia:", sorted(df_hist["Data"].unique(), reverse=True))
+    if not df_hist.empty and "Data" in df_hist.columns:
+        # 1. Seleção do Dia
+        datas = sorted(df_hist["Data"].unique(), reverse=True)
+        data_sel = st.selectbox("Escolha o dia:", datas)
         df_dia = df_hist[df_hist["Data"] == data_sel].copy()
+        
+        # 2. Filtro por Horário (Dinâmico)
+        if "Horario" in df_dia.columns:
+            # Pega apenas horários que existem naquele dia específico
+            h_disp = sorted([str(h) for h in df_dia["Horario"].dropna().unique()])
+            h_opcoes = ["Todos"] + h_disp
+            h_filtro = st.selectbox("Filtrar por Horário:", h_opcoes)
+            
+            if h_filtro != "Todos":
+                df_dia = df_dia[df_dia["Horario"].astype(str) == h_filtro]
+        
+        # 3. Exibição do Ranking da Turma
+        st.markdown(f"**Ranking - {data_sel} ({h_filtro})**")
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
+    else:
+        st.info("Aguardando registros da planilha...")
 
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
