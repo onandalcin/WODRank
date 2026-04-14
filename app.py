@@ -11,7 +11,6 @@ URL_LOGO = "https://i.postimg.cc/Cx1wQRrv/Logo-dinamico-WODRank-com-haltere.png"
 
 st.set_page_config(page_title="WOD Ranking Pro", layout="centered", page_icon=URL_LOGO)
 
-# --- FUNÇÃO DE LEITURA (TEMPO REAL) ---
 @st.cache_data(ttl=0)
 def ler_dados_planilha():
     try:
@@ -20,7 +19,6 @@ def ler_dados_planilha():
     except:
         return pd.DataFrame()
 
-# --- FÓRMULA DE PONTUAÇÃO ---
 def calcular_pontos_dinamico(index_linear):
     pos = index_linear + 1
     if pos == 1: return 100
@@ -35,12 +33,10 @@ def formatar_tabela_bonita(df):
     df.insert(0, 'Pos', posicoes)
     return df[['Pos', 'Nome', 'Tempo']]
 
-# --- INTERFACE ---
 st.markdown(f'<div style="text-align: center;"><img src="{URL_LOGO}" height="180"><h1>WOD Ranking Pro</h1></div>', unsafe_allow_html=True)
 
 aba1, aba2, aba3 = st.tabs(["📝 REGISTRAR", "📅 HISTÓRICO", "🔥 ELITE"])
 
-# --- ABA 1: REGISTRO ---
 with aba1:
     st.markdown("### 📝 Registrar Treino")
     c1, c2 = st.columns(2)
@@ -56,7 +52,6 @@ with aba1:
                 try:
                     partes = l.replace("'", " ").replace(":", " ").strip().split()
                     if len(partes) >= 1:
-                        # Limpeza de nome para evitar duplicatas
                         nome = " ".join([p for p in partes if not p.isdigit()]).upper().replace("-", "").strip()
                         nums = [p for p in partes if p.isdigit()]
                         if len(nums) >= 1:
@@ -72,7 +67,6 @@ with aba1:
                 st.cache_data.clear()
                 st.rerun()
 
-# --- ABA 2: HISTÓRICO ---
 with aba2:
     st.markdown("### 🔍 Histórico")
     if st.button("🔄 ATUALIZAR"):
@@ -88,12 +82,10 @@ with aba2:
             df_dia = df_dia[df_dia["Horario"].astype(str) == h_f]
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
 
-# --- ABA 3: RANKING DE ELITE ---
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
     df_g = ler_dados_planilha()
     if not df_g.empty:
-        # Padronização de nomes antes do cálculo
         df_g['Nome'] = df_g['Nome'].astype(str).str.upper().str.strip()
         
         lista_acum = []
@@ -102,22 +94,19 @@ with aba3:
             dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
             lista_acum.append(dia[['Nome', 'Pontos']])
         
-        # Consolidação
+        # Agregando Pontos (PTS) e Quantidade de WODs (WDS)
         rank = pd.concat(lista_acum).groupby("Nome").agg(
             PTS=('Pontos', 'sum'), 
             WDS=('Nome', 'count')
         ).reset_index()
         
-        # Cálculo da Média de Pontos
+        # Média apenas para visualização
         rank['MEDIA'] = (rank['PTS'] / rank['WDS']).round(1)
 
-        # Ordenação: 1º Pontos, 2º Quantidade de WODs, 3º Média
+        # ORDENAÇÃO: 1º PONTOS, 2º WODS (DESEMPATE), 3º MÉDIA
         rank = rank.sort_values(by=['PTS', 'WDS', 'MEDIA'], ascending=[False, False, False]).reset_index(drop=True)
 
         pos_e = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(rank))]
         rank.insert(0, '#', pos_e)
         
-        # Exibe a tabela final
         st.dataframe(rank, use_container_width=True, hide_index=True)
-    else:
-        st.info("Aguardando registros na planilha...")
