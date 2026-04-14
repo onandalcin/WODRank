@@ -115,22 +115,34 @@ with aba2:
         
         st.dataframe(formatar_tabela_bonita(df_dia), use_container_width=True, hide_index=True)
 
-# --- ABA 3: RANKING ELITE (COM DESEMPATE) ---
+# --- ABA 3: RANKING ELITE (LÓGICA BLINDADA) ---
 with aba3:
     st.markdown("### 🏆 Ranking de Elite")
     df_geral = ler_dados_planilha()
     if not df_geral.empty and "Data" in df_geral.columns:
+        # 1. Limpeza de segurança em todos os nomes da planilha antes de calcular
+        df_geral['Nome'] = df_geral['Nome'].astype(str).str.upper().str.replace("-", "").str.replace("(", "").str.replace(")", "").str.strip()
+        
         lista_acum = []
+        # 2. Calcula pontos por dia de forma isolada
         for d in df_geral["Data"].unique():
-            dia = df_geral[df_geral["Data"] == d].copy().sort_values("Segundos").reset_index(drop=True)
+            dia = df_geral[df_geral["Data"] == d].copy()
+            # Ordena os atletas do dia pelo tempo
+            dia = dia.sort_values("Segundos").reset_index(drop=True)
+            # Atribui a pontuação baseada na posição do dia
             dia['Pontos'] = [calcular_pontos_dinamico(i) for i in range(len(dia))]
             lista_acum.append(dia[['Nome', 'Pontos']])
         
-        rank = pd.concat(lista_acum).groupby("Nome").agg(PTS=('Pontos', 'sum'), WDS=('Nome', 'count')).reset_index()
-        
-        # CRITÉRIO DE DESEMPATE: 1º Pontos (PTS), 2º Qtd WODs (WDS)
+        # 3. Consolida e Soma
+        rank = pd.concat(lista_acum).groupby("Nome").agg(
+            PTS=('Pontos', 'sum'), 
+            WDS=('Nome', 'count')
+        ).reset_index()
+
+        # 4. Ordenação correta: Pontos primeiro, depois presenças
         rank = rank.sort_values(by=['PTS', 'WDS'], ascending=[False, False]).reset_index(drop=True)
-        
+
         pos_elite = [("1º 🥇" if i==0 else "2º 🥈" if i==1 else "3º 🥉" if i==2 else f"{i+1}º") for i in range(len(rank))]
         rank.insert(0, '#', pos_elite)
-        st.dataframe(rank.style.highlight_max(axis=0, subset=['PTS'], color='#FEF3C7'), use_container_width=True, hide_index=True)
+        
+        st.dataframe(rank, use_container_width=True, hide_index=True)
